@@ -238,6 +238,11 @@ _t_default_client_conf = Template(textwrap.dedent("""
     # path beginning with "~" (if the environment var CONAN_USER_HOME is specified, this directory, even
     # with "~/", will be relative to the conan user home, not to the system user home)
     path = ./data
+    download_cache = ./storage-download-cache
+
+    [tools]
+    files.download.retry=3
+    tools.files.download:download_cache=./tools-download-cache
 
     [proxies]
     # Empty (or missing) section will try to use system proxies.
@@ -315,6 +320,16 @@ class ConanClientConfigParser(ConfigParser, object):
             ("CONAN_KEEP_PYTHON_FILES", "keep_python_files", False),
             # ("CONAN_DEFAULT_PROFILE_PATH", "default_profile", DEFAULT_PROFILE_NAME),
         ],
+
+        "storage" : [
+            ("CONAN_STORAGE_PATH", "path", None),
+            ("CONAN_STORAGE_DOWNLOAD_CACHE", "download_cache", None),
+        ],
+
+        "tools": [
+            ("CONAN_TOOLS_FILES_DOWNLOAD_CACHE", "files.download:download_cache", None),
+        ],
+
         "hooks": [
             ("CONAN_HOOKS", "", None),
         ]
