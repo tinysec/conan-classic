@@ -19,7 +19,4 @@ but the command line is same as 1.x
 4. You want easy per-site proxy feature worked
 
 
-## What fixed.
-1. The config keys contains ':' not workd right at windows, replaced with '.'
-2.
 
