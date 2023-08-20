@@ -1,10 +1,10 @@
 import os
 import unittest
 
-from nose.plugins.attrib import attr
+from mock import Mock
 from parameterized import parameterized
 
-from conans.client.conf import default_settings_yml
+from conans.client.conf import get_default_settings_yml
 from conans.client.generators import VisualStudioMultiGenerator
 from conans.client.tools.files import chdir
 from conans.model.build_info import CppInfo
@@ -13,32 +13,30 @@ from conans.model.env_info import EnvValues
 from conans.model.ref import ConanFileReference
 from conans.model.settings import Settings
 from conans.test.utils.test_files import temp_folder
-from conans.test.utils.tools import TestBufferConanOutput
 
 
-@attr('visual_studio')
 class VisualStudioMultiGeneratorTest(unittest.TestCase):
 
     @parameterized.expand([(False, ), (True, )])
-    def valid_xml_test(self, use_toolset):
+    def test_valid_xml(self, use_toolset):
         tempdir = temp_folder()
         with chdir(tempdir):
-            settings = Settings.loads(default_settings_yml)
+            settings = Settings.loads(get_default_settings_yml())
             settings.os = "Windows"
             settings.compiler = "Visual Studio"
             settings.compiler.version = "11"
             settings.compiler.runtime = "MD"
             if use_toolset:
                 settings.compiler.toolset = "v110"
-            conanfile = ConanFile(TestBufferConanOutput(), None)
+            conanfile = ConanFile(Mock(), None)
             conanfile.initialize(Settings({}), EnvValues())
 
             ref = ConanFileReference.loads("MyPkg/0.1@user/testing")
-            cpp_info = CppInfo("dummy_root_folder1")
-            conanfile.deps_cpp_info.update(cpp_info, ref.name)
+            cpp_info = CppInfo(ref.name, "dummy_root_folder1")
+            conanfile.deps_cpp_info.add(ref.name, cpp_info)
             ref = ConanFileReference.loads("My.Fancy-Pkg_2/0.1@user/testing")
-            cpp_info = CppInfo("dummy_root_folder2")
-            conanfile.deps_cpp_info.update(cpp_info, ref.name)
+            cpp_info = CppInfo(ref.name, "dummy_root_folder2")
+            conanfile.deps_cpp_info.add(ref.name, cpp_info)
 
             settings.arch = "x86"
             settings.build_type = "Debug"
@@ -87,20 +85,20 @@ class VisualStudioMultiGeneratorTest(unittest.TestCase):
 
             os.unlink('conanbuildinfo_multi.props')
 
-    def addional_dependencies_test(self):
+    def test_addional_dependencies(self):
 
         def validate_additional_dependencies(libname, additional_dep):
             tempdir = temp_folder()
             with chdir(tempdir):
-                conanfile = ConanFile(TestBufferConanOutput(), None)
+                conanfile = ConanFile(Mock(), None)
                 conanfile.initialize(Settings({}), EnvValues())
 
                 ref = ConanFileReference.loads("MyPkg/0.1@user/testing")
-                cpp_info = CppInfo("dummy_root_folder1")
+                cpp_info = CppInfo(ref.name, "dummy_root_folder1")
                 cpp_info.libs = [libname]
-                conanfile.deps_cpp_info.update(cpp_info, ref.name)
+                conanfile.deps_cpp_info.add(ref.name, cpp_info)
 
-                settings = Settings.loads(default_settings_yml)
+                settings = Settings.loads(get_default_settings_yml())
                 settings.os = "Windows"
                 settings.arch = "x86_64"
                 settings.build_type = "Release"
@@ -117,9 +115,11 @@ class VisualStudioMultiGeneratorTest(unittest.TestCase):
                 self.assertIn('conanbuildinfo_release_x64_v141.props', content.keys())
 
                 content_release = content['conanbuildinfo_release_x64_v141.props']
+                self.assertIn("<ConanLibraries>%s;</ConanLibraries>" % additional_dep,
+                              content_release)
                 self.assertIn("<AdditionalDependencies>"
-                              "{};%(AdditionalDependencies)"
-                              "</AdditionalDependencies>".format(additional_dep), content_release)
+                              "$(ConanLibraries)%(AdditionalDependencies)"
+                              "</AdditionalDependencies>", content_release)
 
         # regular
         validate_additional_dependencies("foobar", "foobar.lib")

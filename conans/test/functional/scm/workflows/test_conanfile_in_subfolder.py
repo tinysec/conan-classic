@@ -4,11 +4,11 @@ import os
 import textwrap
 import unittest
 
-from nose.plugins.attrib import attr
+import pytest
 
-from conans.test.functional.scm.workflows.common import TestWorkflow
-from conans.test.utils.tools import SVNLocalRepoTestCase
-from conans.test.utils.tools import TestClient, create_local_git_repo
+from conans.test.integration.scm.workflows.common import TestWorkflow
+from conans.test.utils.scm import create_local_git_repo, SVNLocalRepoTestCase
+from conans.test.utils.tools import TestClient
 
 
 class ConanfileInSubfolder(TestWorkflow):
@@ -18,7 +18,7 @@ class ConanfileInSubfolder(TestWorkflow):
     path_from_conanfile_to_root = ".."
 
 
-@attr("svn")
+@pytest.mark.tool_svn
 class SVNConanfileInSubfolderTest(ConanfileInSubfolder, SVNLocalRepoTestCase):
 
     extra_header = textwrap.dedent("""\
@@ -41,36 +41,37 @@ class SVNConanfileInSubfolderTest(ConanfileInSubfolder, SVNLocalRepoTestCase):
     # Local workflow
     def test_local_root_folder(self):
         t = TestClient(path_with_spaces=False)
-        t.runner("svn co {}/lib1 .".format(self.url), cwd=t.current_folder)
+        t.run_command("svn co {}/lib1 .".format(self.url))
         self._run_local_test(t, t.current_folder, self.path_to_conanfile)
 
     def test_local_monorepo(self):
         t = TestClient(path_with_spaces=False)
-        t.runner("svn co {} .".format(self.url), cwd=t.current_folder)
+        t.run_command("svn co {} .".format(self.url))
         self._run_local_test(t, t.current_folder, os.path.join("lib1", self.path_to_conanfile))
 
     def test_local_monorepo_chdir(self):
         t = TestClient(path_with_spaces=False)
-        t.runner("svn co {} .".format(self.url), cwd=t.current_folder)
+        t.run_command("svn co {} .".format(self.url))
         self._run_local_test(t, os.path.join(t.current_folder, "lib1"), self.path_to_conanfile)
 
     # Cache workflow
     def test_remote_root_folder(self):
         t = TestClient(path_with_spaces=False)
-        t.runner("svn co {}/lib1 .".format(self.url), cwd=t.current_folder)
+        t.run_command("svn co {}/lib1 .".format(self.url))
         self._run_remote_test(t, t.current_folder, self.path_to_conanfile)
 
     def test_remote_monorepo(self):
         t = TestClient(path_with_spaces=False)
-        t.runner("svn co {} .".format(self.url), cwd=t.current_folder)
+        t.run_command("svn co {} .".format(self.url))
         self._run_remote_test(t, t.current_folder, os.path.join("lib1", self.path_to_conanfile))
 
     def test_remote_monorepo_chdir(self):
         t = TestClient(path_with_spaces=False)
-        t.runner("svn co {} .".format(self.url), cwd=t.current_folder)
+        t.run_command("svn co {} .".format(self.url))
         self._run_remote_test(t, os.path.join(t.current_folder, "lib1"), self.path_to_conanfile)
 
 
+@pytest.mark.tool_git
 class GitConanfileInSubfolderTest(ConanfileInSubfolder, unittest.TestCase):
 
     conanfile = ConanfileInSubfolder.conanfile_base.format(extra_header="",
@@ -86,11 +87,11 @@ class GitConanfileInSubfolderTest(ConanfileInSubfolder, unittest.TestCase):
     # Local workflow
     def test_local_root_folder(self):
         t = TestClient(path_with_spaces=False)
-        t.runner('git clone "{}" .'.format(self.url), cwd=t.current_folder)
+        t.run_command('git clone "{}" .'.format(self.url))
         self._run_local_test(t, t.current_folder, self.path_to_conanfile)
 
     # Cache workflow
     def test_remote_root_folder(self):
         t = TestClient(path_with_spaces=False)
-        t.runner('git clone "{}" .'.format(self.url), cwd=t.current_folder)
+        t.run_command('git clone "{}" .'.format(self.url))
         self._run_remote_test(t, t.current_folder, self.path_to_conanfile)

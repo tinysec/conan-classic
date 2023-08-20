@@ -4,6 +4,7 @@ from collections import OrderedDict
 from conans.client.output import Color
 from conans.model.options import OptionsValues
 from conans.model.ref import ConanFileReference
+from conans.util.conan_v2_mode import conan_v2_error
 
 
 class Printer(object):
@@ -23,6 +24,8 @@ class Printer(object):
     def print_inspect(self, inspect, raw=False):
         for k, v in inspect.items():
             if k == "default_options":
+                conan_v2_error("Declare 'default_options' as a dictionary", not isinstance(v, dict))
+
                 if isinstance(v, str):
                     v = OptionsValues.loads(v)
                 elif isinstance(v, tuple):
@@ -71,6 +74,7 @@ class Printer(object):
             self._out.writeln(it["display_name"], Color.BRIGHT_CYAN)
             _print("id", name="ID")
             _print("build_id", name="BuildID")
+            _print("context", name="Context")
             if show_paths:
                 _print("export_folder")
                 _print("source_folder")
@@ -94,13 +98,20 @@ class Printer(object):
                 self._out.writeln("    %s: %s" % (lead_str, licenses_str), Color.BRIGHT_GREEN)
 
             _print("author", name="Author")
+            _print("description", name="Description")
 
             if show("topics") and "topics" in it:
                 self._out.writeln("    Topics: %s" % ", ".join(it["topics"]), Color.BRIGHT_GREEN)
 
+            if show("provides") and "provides" in it:
+                self._out.writeln("    Provides: %s" % ", ".join(it["provides"]), Color.BRIGHT_GREEN)
+
+            _print("deprecated", name="Deprecated")
+
             _print("recipe", name="Recipe", color=None)
             if show_revisions:
                 _print("revision", name="Revision", color=None)
+                _print("package_revision", name="Package revision", color=None)
             _print("binary", name="Binary", color=None)
 
             if show("binary_remote") and is_ref:
@@ -110,6 +121,13 @@ class Printer(object):
                     self._out.writeln("    Binary remote: None")
 
             _print("creation_date", show_field="date", name="Creation date")
+
+            _print("scm", show_field="scm", name="scm")
+
+            if show("python_requires") and "python_requires" in it:
+                self._out.writeln("    Python-requires:", Color.BRIGHT_GREEN)
+                for d in it["python_requires"]:
+                    self._out.writeln("        %s" % d, Color.BRIGHT_YELLOW)
 
             if show("required") and "required_by" in it:
                 self._out.writeln("    Required by:", Color.BRIGHT_GREEN)
@@ -143,20 +161,24 @@ class Printer(object):
                 if all_remotes_search:
                     self._out.highlight("Remote '%s':" % str(remote_info["remote"]))
                 for conan_item in remote_info["items"]:
-                    self._print_colored_line(str(conan_item["recipe"]["id"]), indent=0)
+                    reference = conan_item["recipe"]["id"]
+                    ref = ConanFileReference.loads(reference)
+                    self._print_colored_line(ref.full_str(), indent=0)
         else:
             for remote_info in search_info:
                 if all_remotes_search:
                     self._out.writeln("Remote '%s':" % str(remote_info["remote"]))
                 for conan_item in remote_info["items"]:
-                    self._out.writeln(str(conan_item["recipe"]["id"]))
+                    reference = conan_item["recipe"]["id"]
+                    ref = ConanFileReference.loads(reference)
+                    self._out.writeln(ref.full_str())
 
-    def print_search_packages(self, search_info, ref, packages_query,
-                              outdated=False):
+    def print_search_packages(self, search_info, ref, packages_query, raw, outdated=False):
         assert(isinstance(ref, ConanFileReference))
-        self._out.info("Existing packages for recipe %s:\n" % str(ref))
+        if not raw:
+            self._out.info("Existing packages for recipe %s:\n" % str(ref))
         for remote_info in search_info:
-            if remote_info["remote"]:
+            if remote_info["remote"] and not raw:
                 self._out.info("Existing recipe in remote '%s':\n" % remote_info["remote"])
 
             if not remote_info["items"][0]["packages"]:
@@ -166,7 +188,8 @@ class Printer(object):
                 elif remote_info["items"][0]["recipe"]:
                     warn_msg = "There are no %spackages for reference '%s', but package recipe " \
                                "found." % ("outdated " if outdated else "", str(ref))
-                self._out.info(warn_msg)
+                if not raw:
+                    self._out.info(warn_msg)
                 continue
 
             ref = remote_info["items"][0]["recipe"]["id"]
@@ -198,6 +221,7 @@ class Printer(object):
         self._out.info("Configuration for profile %s:\n" % name)
         self._print_profile_section("settings", profile.settings.items(), separator="=")
         self._print_profile_section("options", profile.options.as_list(), separator="=")
+        self._print_profile_section("conf", profile.conf.as_list(), separator="=")
         self._print_profile_section("build_requires", [(key, ", ".join(str(val) for val in values))
                                                        for key, values in
                                                        profile.build_requires.items()])

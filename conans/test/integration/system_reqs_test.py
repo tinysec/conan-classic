@@ -25,42 +25,42 @@ class TestSystemReqs(ConanFile):
 
 
 class SystemReqsTest(unittest.TestCase):
-    def force_system_reqs_rerun_test(self):
+    def test_force_system_reqs_rerun(self):
         client = TestClient()
         files = {'conanfile.py': base_conanfile.replace("%GLOBAL%", "")}
         client.save(files)
         client.run("create . user/channel")
-        self.assertIn("*+Running system requirements+*", client.user_io.out)
+        self.assertIn("*+Running system requirements+*", client.out)
         client.run("install Test/0.1@user/channel")
-        self.assertNotIn("*+Running system requirements+*", client.user_io.out)
+        self.assertNotIn("*+Running system requirements+*", client.out)
         ref = ConanFileReference.loads("Test/0.1@user/channel")
         pfs = client.cache.package_layout(ref).packages()
         pid = os.listdir(pfs)[0]
         reqs_file = client.cache.package_layout(ref).system_reqs_package(PackageReference(ref, pid))
         os.unlink(reqs_file)
         client.run("install Test/0.1@user/channel")
-        self.assertIn("*+Running system requirements+*", client.user_io.out)
+        self.assertIn("*+Running system requirements+*", client.out)
         self.assertTrue(os.path.exists(reqs_file))
 
-    def local_system_requirements_test(self):
+    def test_local_system_requirements(self):
         client = TestClient()
         files = {'conanfile.py': base_conanfile.replace("%GLOBAL%", "")}
         client.save(files)
         client.run("install .")
-        self.assertIn("*+Running system requirements+*", client.user_io.out)
+        self.assertIn("*+Running system requirements+*", client.out)
 
         files = {'conanfile.py': base_conanfile.replace("%GLOBAL%", "self.run('fake command!')")}
         client.save(files)
         with six.assertRaisesRegex(self, Exception, "Command failed"):
             client.run("install .")
 
-    def per_package_test(self):
+    def test_per_package(self):
         client = TestClient()
         files = {'conanfile.py': base_conanfile.replace("%GLOBAL%", "")}
         client.save(files)
         client.run("export . user/testing")
         client.run("install Test/0.1@user/testing --build missing")
-        self.assertIn("*+Running system requirements+*", client.user_io.out)
+        self.assertIn("*+Running system requirements+*", client.out)
         ref = ConanFileReference.loads("Test/0.1@user/testing")
         self.assertFalse(os.path.exists(client.cache.package_layout(ref).system_reqs()))
         pref = PackageReference(ref, "f0ba3ca2c218df4a877080ba99b65834b9413798")
@@ -69,14 +69,14 @@ class SystemReqsTest(unittest.TestCase):
 
         # Run again
         client.run("install Test/0.1@user/testing --build missing")
-        self.assertNotIn("*+Running system requirements+*", client.user_io.out)
+        self.assertNotIn("*+Running system requirements+*", client.out)
         self.assertFalse(os.path.exists(client.cache.package_layout(ref).system_reqs()))
         load_file = load(client.cache.package_layout(ref).system_reqs_package(pref))
         self.assertIn("Installed my stuff", load_file)
 
         # Run with different option
         client.run("install Test/0.1@user/testing -o myopt=False --build missing")
-        self.assertIn("*+Running system requirements+*", client.user_io.out)
+        self.assertIn("*+Running system requirements+*", client.out)
         self.assertFalse(os.path.exists(client.cache.package_layout(ref).system_reqs()))
         pref2 = PackageReference(ref, NO_SETTINGS_PACKAGE_ID)
         load_file = load(client.cache.package_layout(ref).system_reqs_package(pref2))
@@ -94,7 +94,7 @@ class SystemReqsTest(unittest.TestCase):
         self.assertFalse(os.path.exists(layout1.system_reqs_package(pref)))
         self.assertFalse(os.path.exists(layout2.system_reqs_package(pref2)))
 
-    def global_test(self):
+    def test_global(self):
         client = TestClient()
         files = {
             'conanfile.py': base_conanfile.replace("%GLOBAL%",
@@ -103,7 +103,7 @@ class SystemReqsTest(unittest.TestCase):
         client.save(files)
         client.run("export . user/testing")
         client.run("install Test/0.1@user/testing --build missing")
-        self.assertIn("*+Running system requirements+*", client.user_io.out)
+        self.assertIn("*+Running system requirements+*", client.out)
         ref = ConanFileReference.loads("Test/0.1@user/testing")
         pref = PackageReference(ref, "a527106fd9f2e3738a55b02087c20c0a63afce9d")
         self.assertFalse(os.path.exists(client.cache.package_layout(ref).system_reqs_package(pref)))
@@ -112,14 +112,14 @@ class SystemReqsTest(unittest.TestCase):
 
         # Run again
         client.run("install Test/0.1@user/testing --build missing")
-        self.assertNotIn("*+Running system requirements+*", client.user_io.out)
+        self.assertNotIn("*+Running system requirements+*", client.out)
         self.assertFalse(os.path.exists(client.cache.package_layout(ref).system_reqs_package(pref)))
         load_file = load(client.cache.package_layout(ref).system_reqs())
         self.assertIn("Installed my stuff", load_file)
 
         # Run with different option
         client.run("install Test/0.1@user/testing -o myopt=False --build missing")
-        self.assertNotIn("*+Running system requirements+*", client.user_io.out)
+        self.assertNotIn("*+Running system requirements+*", client.out)
         pref2 = PackageReference(ref, "54c9626b48cefa3b819e64316b49d3b1e1a78c26")
         self.assertFalse(os.path.exists(client.cache.package_layout(ref).system_reqs_package(pref)))
         self.assertFalse(os.path.exists(client.cache.package_layout(ref).system_reqs_package(pref2)))
@@ -132,7 +132,7 @@ class SystemReqsTest(unittest.TestCase):
         self.assertFalse(os.path.exists(client.cache.package_layout(ref).system_reqs_package(pref2)))
         self.assertFalse(os.path.exists(client.cache.package_layout(ref).system_reqs()))
 
-    def wrong_output_test(self):
+    def test_wrong_output(self):
         client = TestClient()
         files = {
             'conanfile.py':
@@ -141,14 +141,14 @@ class SystemReqsTest(unittest.TestCase):
         client.save(files)
         client.run("export . user/testing")
         client.run("install Test/0.1@user/testing --build missing")
-        self.assertIn("*+Running system requirements+*", client.user_io.out)
+        self.assertIn("*+Running system requirements+*", client.out)
         ref = ConanFileReference.loads("Test/0.1@user/testing")
         self.assertFalse(os.path.exists(client.cache.package_layout(ref).system_reqs()))
         pref = PackageReference(ref, "f0ba3ca2c218df4a877080ba99b65834b9413798")
         load_file = load(client.cache.package_layout(pref.ref).system_reqs_package(pref))
         self.assertEqual('', load_file)
 
-    def remove_system_reqs_test(self):
+    def test_remove_system_reqs(self):
         ref = ConanFileReference.loads("Test/0.1@user/channel")
         client = TestClient()
         files = {'conanfile.py': base_conanfile.replace("%GLOBAL%", "")}
@@ -158,23 +158,23 @@ class SystemReqsTest(unittest.TestCase):
         # create package to populate system_reqs folder
         self.assertFalse(os.path.exists(system_reqs_path))
         client.run("create . user/channel")
-        self.assertIn("*+Running system requirements+*", client.user_io.out)
+        self.assertIn("*+Running system requirements+*", client.out)
         self.assertTrue(os.path.exists(system_reqs_path))
 
         # a new build must not remove or re-run
         client.run("create . user/channel")
-        self.assertNotIn("*+Running system requirements+*", client.user_io.out)
+        self.assertNotIn("*+Running system requirements+*", client.out)
         self.assertTrue(os.path.exists(system_reqs_path))
 
         # remove system_reqs global
         client.run("remove --system-reqs Test/0.1@user/channel")
         self.assertIn("Cache system_reqs from Test/0.1@user/channel has been removed",
-                      client.user_io.out)
+                      client.out)
         self.assertFalse(os.path.exists(system_reqs_path))
 
         # re-create system_reqs folder
         client.run("create . user/channel")
-        self.assertIn("*+Running system requirements+*", client.user_io.out)
+        self.assertIn("*+Running system requirements+*", client.out)
         self.assertTrue(os.path.exists(system_reqs_path))
 
         # Wildcard system_reqs removal
@@ -184,9 +184,9 @@ class SystemReqsTest(unittest.TestCase):
         client.run("create . user/channel_other")
         client.run("remove --system-reqs '*'")
         self.assertIn("Cache system_reqs from Test/0.1@user/channel has been removed",
-                      client.user_io.out)
+                      client.out)
         self.assertIn("Cache system_reqs from Test/0.1@user/channel_other has been removed",
-                      client.user_io.out)
+                      client.out)
         self.assertFalse(os.path.exists(system_reqs_path))
         self.assertFalse(os.path.exists(system_reqs_path_other))
 
@@ -194,9 +194,9 @@ class SystemReqsTest(unittest.TestCase):
         client.run("create . user/channel_other")
         client.run("remove --system-reqs Test/0.1@user/channel")
         self.assertIn("Cache system_reqs from Test/0.1@user/channel has been removed",
-                      client.user_io.out)
+                      client.out)
         self.assertNotIn("Cache system_reqs from Test/0.1@user/channel_other has been removed",
-                         client.user_io.out)
+                         client.out)
         self.assertFalse(os.path.exists(system_reqs_path))
         self.assertTrue(os.path.exists(system_reqs_path_other))
 
@@ -204,13 +204,13 @@ class SystemReqsTest(unittest.TestCase):
         client.run("create . user/channel")
         client.run("remove --system-reqs Test/0.1@user/channel_*")
         self.assertNotIn("Cache system_reqs from Test/0.1@user/channel has been removed",
-                         client.user_io.out)
+                         client.out)
         self.assertIn("Cache system_reqs from Test/0.1@user/channel_other has been removed",
-                      client.user_io.out)
+                      client.out)
         self.assertTrue(os.path.exists(system_reqs_path))
         self.assertFalse(os.path.exists(system_reqs_path_other))
 
-    def invalid_remove_reqs_test(self):
+    def test_invalid_remove_reqs(self):
         client = TestClient()
 
         with six.assertRaisesRegex(self, Exception,
@@ -228,7 +228,7 @@ class SystemReqsTest(unittest.TestCase):
             client.run("remove --system-reqs foo/bar@foo/bar "
                        "-p f0ba3ca2c218df4a877080ba99b65834b9413798")
 
-    def permission_denied_remove_system_reqs_test(self):
+    def test_permission_denied_remove_system_reqs(self):
         ref = ConanFileReference.loads("Test/0.1@user/channel")
         client = TestClient()
         files = {'conanfile.py': base_conanfile.replace("%GLOBAL%", "")}
@@ -238,7 +238,7 @@ class SystemReqsTest(unittest.TestCase):
         # create package to populate system_reqs folder
         self.assertFalse(os.path.exists(system_reqs_path))
         client.run("create . user/channel")
-        self.assertIn("*+Running system requirements+*", client.user_io.out)
+        self.assertIn("*+Running system requirements+*", client.out)
         self.assertTrue(os.path.exists(system_reqs_path))
 
         # remove write permission
@@ -250,7 +250,10 @@ class SystemReqsTest(unittest.TestCase):
             client.run("remove --system-reqs Test/0.1@user/channel")
         self.assertTrue(os.path.exists(system_reqs_path))
 
-    def duplicate_remove_system_reqs_test(self):
+        # restore write permission so the temporal folder can be deleted later
+        os.chmod(system_reqs_path, current | stat.S_IWRITE)
+
+    def test_duplicate_remove_system_reqs(self):
         ref = ConanFileReference.loads("Test/0.1@user/channel")
         client = TestClient()
         files = {'conanfile.py': base_conanfile.replace("%GLOBAL%", "")}
@@ -260,27 +263,27 @@ class SystemReqsTest(unittest.TestCase):
         # create package to populate system_reqs folder
         self.assertFalse(os.path.exists(system_reqs_path))
         client.run("create . user/channel")
-        self.assertIn("*+Running system requirements+*", client.user_io.out)
+        self.assertIn("*+Running system requirements+*", client.out)
         self.assertTrue(os.path.exists(system_reqs_path))
 
         # a new build must not remove or re-run
         client.run("create . user/channel")
-        self.assertNotIn("*+Running system requirements+*", client.user_io.out)
+        self.assertNotIn("*+Running system requirements+*", client.out)
         self.assertTrue(os.path.exists(system_reqs_path))
 
         # remove system_reqs global
         client.run("remove --system-reqs Test/0.1@user/channel")
         self.assertIn("Cache system_reqs from Test/0.1@user/channel has been removed",
-                      client.user_io.out)
+                      client.out)
         self.assertFalse(os.path.exists(system_reqs_path))
 
         # try to remove system_reqs global again
         client.run("remove --system-reqs Test/0.1@user/channel")
         self.assertIn("Cache system_reqs from Test/0.1@user/channel has been removed",
-                      client.user_io.out)
+                      client.out)
         self.assertFalse(os.path.exists(system_reqs_path))
 
         # re-create system_reqs folder
         client.run("create . user/channel")
-        self.assertIn("*+Running system requirements+*", client.user_io.out)
+        self.assertIn("*+Running system requirements+*", client.out)
         self.assertTrue(os.path.exists(system_reqs_path))

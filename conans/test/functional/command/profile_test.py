@@ -1,41 +1,47 @@
 import os
 import unittest
+import platform
+import subprocess
+import json
 
+import pytest
+
+from conans.client import tools
 from conans.test.utils.profiles import create_profile
+from conans.client.conf.detect import detect_defaults_settings
 from conans.test.utils.tools import TestClient
 from conans.util.files import load
-import platform
+from conans.util.runners import check_output_runner
+from conans.paths import DEFAULT_PROFILE_NAME
+from conans.test.utils.mocks import TestBufferConanOutput
 
 
 class ProfileTest(unittest.TestCase):
 
-    def reuse_output_test(self):
+    def test_reuse_output(self):
         client = TestClient()
         client.run("profile new myprofile --detect")
-
-        if "WARNING: GCC OLD ABI COMPATIBILITY" in client.out:
-            self.assertIn("edit the myprofile profile at", client.out)
-            self.assertIn("profiles/myprofile", client.out)
-
         client.run("profile update options.Pkg:myoption=123 myprofile")
         client.run("profile update env.Pkg2:myenv=123 myprofile")
+        client.run("profile update conf.tools.ninja:jobs=10 myprofile")
         client.run("profile show myprofile")
         self.assertIn("Pkg:myoption=123", client.out)
         self.assertIn("Pkg2:myenv=123", client.out)
+        self.assertIn("tools.ninja:jobs=10", client.out)
         profile = str(client.out).splitlines()[2:]
         client.save({"conanfile.txt": "",
                      "mylocalprofile": "\n".join(profile)})
         client.run("install . -pr=mylocalprofile")
         self.assertIn("conanfile.txt: Generated conaninfo.txt", client.out)
 
-    def empty_test(self):
-        client = TestClient()
+    def test_empty(self):
+        client = TestClient(cache_autopopulate=False)
         client.run("profile list")
-        self.assertIn("No profiles defined", client.user_io.out)
+        self.assertIn("No profiles defined", client.out)
 
-    def list_test(self):
+    def test_list(self):
         client = TestClient()
-        profiles = ["profile1", "profile2", "profile3",
+        profiles = ["default", "profile1", "profile2", "profile3",
                     "nested" + os.path.sep + "profile4",
                     "nested" + os.path.sep + "two" + os.path.sep + "profile5",
                     "nested" + os.path.sep + "profile6"]
@@ -56,27 +62,40 @@ class ProfileTest(unittest.TestCase):
         profiles.sort()
         self.assertEqual(profiles, list(str(client.out).splitlines()))
 
-    def show_test(self):
+        # Test profile list json file
+        client.run("profile list --json profile_list.json")
+        json_path = os.path.join(client.current_folder, "profile_list.json")
+        self.assertTrue(os.path.exists(json_path))
+        json_content = load(json_path)
+        json_obj = json.loads(json_content)
+        self.assertEqual(list, type(json_obj))
+        self.assertEqual(profiles, json_obj)
+
+    def test_show(self):
         client = TestClient()
         create_profile(client.cache.profiles_path, "profile1", settings={"os": "Windows"},
                        options=[("MyOption", "32")])
         create_profile(client.cache.profiles_path, "profile3",
                        env=[("package:VAR", "value"), ("CXX", "/path/tomy/g++_build"),
-                            ("CC", "/path/tomy/gcc_build")])
+                            ("CC", "/path/tomy/gcc_build")],
+                       conf=["tools.ninja:jobs=10", "tools.gnu.make:jobs=20"])
         client.run("profile show profile1")
-        self.assertIn("[settings]\nos=Windows", client.user_io.out)
-        self.assertIn("MyOption=32", client.user_io.out)
+        self.assertIn("[settings]\nos=Windows", client.out)
+        self.assertIn("MyOption=32", client.out)
         client.run("profile show profile3")
-        self.assertIn("CC=/path/tomy/gcc_build", client.user_io.out)
-        self.assertIn("CXX=/path/tomy/g++_build", client.user_io.out)
-        self.assertIn("package:VAR=value", client.user_io.out)
+        self.assertIn("CC=/path/tomy/gcc_build", client.out)
+        self.assertIn("CXX=/path/tomy/g++_build", client.out)
+        self.assertIn("package:VAR=value", client.out)
+        self.assertIn("tools.ninja:jobs=10", client.out)
+        self.assertIn("tools.gnu.make:jobs=20", client.out)
 
-    def profile_update_and_get_test(self):
+    def test_profile_update_and_get(self):
         client = TestClient()
         client.run("profile new ./MyProfile --detect")
         if "WARNING: GCC OLD ABI COMPATIBILITY" in client.out:
-            self.assertIn("edit the MyProfile profile at", client.out)
-            self.assertIn(os.path.join(client.current_folder, "MyProfile"), client.out)
+            self.assertIn("Or edit '{}/MyProfile' and "
+                          "set compiler.libcxx=libstdc++11".format(client.current_folder),
+                          client.out)
 
         pr_path = os.path.join(client.current_folder, "MyProfile")
 
@@ -117,6 +136,18 @@ class ProfileTest(unittest.TestCase):
         client.run("profile get env.OneMyEnv ./MyProfile")
         self.assertEqual(client.out, "MYVALUe\n")
 
+        client.run("profile update conf.tools.ninja:jobs=10 ./MyProfile")
+        self.assertIn("[conf]\ntools.ninja:jobs=10", load(pr_path))
+
+        client.run("profile get conf.tools.ninja:jobs ./MyProfile")
+        self.assertEqual(client.out, "10\n")
+
+        client.run("profile update conf.tools.gnu.make:jobs=20 ./MyProfile")
+        self.assertIn("tools.gnu.make:jobs=20", load(pr_path))
+
+        client.run("profile get conf.tools.gnu.make:jobs ./MyProfile")
+        self.assertEqual(client.out, "20\n")
+
         # Now try the remove
 
         client.run("profile remove settings.os ./MyProfile")
@@ -133,20 +164,27 @@ class ProfileTest(unittest.TestCase):
         self.assertNotIn("Package:MyOption", load(pr_path))
         self.assertIn("Package:OtherOption", load(pr_path))
 
+        client.run("profile remove conf.tools.gnu.make:jobs ./MyProfile")
+        self.assertNotIn("tools.gnu.make:jobs", load(pr_path))
+        self.assertIn("tools.ninja:jobs", load(pr_path))
+
         client.run("profile remove env.OneMyEnv ./MyProfile")
         self.assertNotIn("OneMyEnv", load(pr_path))
 
         # Remove a non existent key
         client.run("profile remove settings.os ./MyProfile", assert_error=True)
-        self.assertIn("Profile key 'settings.os' doesn't exist", client.user_io.out)
+        self.assertIn("Profile key 'settings.os' doesn't exist", client.out)
 
         client.run("profile remove options.foo ./MyProfile", assert_error=True)
-        self.assertIn("Profile key 'options.foo' doesn't exist", client.user_io.out)
+        self.assertIn("Profile key 'options.foo' doesn't exist", client.out)
 
         client.run("profile remove env.foo ./MyProfile", assert_error=True)
-        self.assertIn("Profile key 'env.foo' doesn't exist", client.user_io.out)
+        self.assertIn("Profile key 'env.foo' doesn't exist", client.out)
 
-    def profile_update_env_test(self):
+        client.run("profile remove conf.MyConf ./MyProfile", assert_error=True)
+        self.assertIn("Profile key 'conf.MyConf' doesn't exist", client.out)
+
+    def test_profile_update_env(self):
         client = TestClient()
         client.run("profile new ./MyProfile")
         pr_path = os.path.join(client.current_folder, "MyProfile")
@@ -161,7 +199,7 @@ class ProfileTest(unittest.TestCase):
         self.assertEqual(["[env]", "foo=BAZ", "MyPkg:foo=FOO,BAZ,BAR"],
                          load(pr_path).splitlines()[-3:])
 
-    def profile_new_test(self):
+    def test_profile_new(self):
         client = TestClient()
         client.run("profile new ./MyProfile")
         pr_path = os.path.join(client.current_folder, "MyProfile")
@@ -178,14 +216,14 @@ class ProfileTest(unittest.TestCase):
         self.assertIn("os=", load(pr_path))
 
         client.run("profile new ./MyProfile2 --detect", assert_error=True)
-        self.assertIn("Profile already exists", client.user_io.out)
+        self.assertIn("Profile already exists", client.out)
 
         client.run("profile new MyProfile3")
         pr_path = os.path.join(client.cache.profiles_path, "MyProfile3")
         self.assertTrue(os.path.exists(pr_path))
         self.assertNotIn("os=", load(pr_path))
 
-    def profile_force_new_test(self):
+    def test_profile_force_new(self):
         client = TestClient()
 
         empty_profile = """[settings]
@@ -199,7 +237,7 @@ class ProfileTest(unittest.TestCase):
         self.assertEqual(load(pr_path), empty_profile)
 
         client.run("profile new ./MyProfile --detect", assert_error=True)
-        self.assertIn("Profile already exists", client.user_io.out)
+        self.assertIn("Profile already exists", client.out)
 
         client.run("profile new ./MyProfile --detect --force", assert_error=False)
         self.assertNotEqual(load(pr_path), empty_profile)
@@ -217,7 +255,47 @@ class ProfileTest(unittest.TestCase):
         self.assertNotIn("[env]\nMyEnv=MYVALUe", load(pr_path))
         self.assertEqual(load(pr_path), detected_profile)
 
-    def missing_subarguments_test(self):
+    def test_missing_subarguments(self):
         client = TestClient()
         client.run("profile", assert_error=True)
         self.assertIn("ERROR: Exiting with code: 2", client.out)
+
+
+class DetectCompilersTest(unittest.TestCase):
+    def test_detect_default_compilers(self):
+        platform_default_compilers = {
+            "Linux": "gcc",
+            "Darwin": "apple-clang",
+            "Windows": "Visual Studio"
+        }
+        output = TestBufferConanOutput()
+        result = detect_defaults_settings(output, profile_path=DEFAULT_PROFILE_NAME)
+        # result is a list of tuples (name, value) so converting it to dict
+        result = dict(result)
+        platform_compiler = platform_default_compilers.get(platform.system(), None)
+        if platform_compiler is not None:
+            self.assertEqual(result.get("compiler", None), platform_compiler)
+
+    @pytest.mark.tool_gcc
+    @pytest.mark.skipif(platform.system() != "Darwin", reason="only OSX test")
+    def test_detect_default_in_mac_os_using_gcc_as_default(self):
+        """
+        Test if gcc in Mac OS X is using apple-clang as frontend
+        """
+        # See: https://github.com/conan-io/conan/issues/2231
+        output = check_output_runner(["gcc", "--version"], stderr=subprocess.STDOUT)
+
+        if "clang" not in output:
+            # Not test scenario gcc should display clang in output
+            # see: https://stackoverflow.com/questions/19535422/os-x-10-9-gcc-links-to-clang
+            raise Exception("Apple gcc doesn't point to clang with gcc frontend anymore!")
+
+        output = TestBufferConanOutput()
+        with tools.environment_append({"CC": "gcc"}):
+            result = detect_defaults_settings(output, profile_path=DEFAULT_PROFILE_NAME)
+        # result is a list of tuples (name, value) so converting it to dict
+        result = dict(result)
+        # No compiler should be detected
+        self.assertIsNone(result.get("compiler", None))
+        self.assertIn("gcc detected as a frontend using apple-clang", output)
+        self.assertIsNotNone(output.error)

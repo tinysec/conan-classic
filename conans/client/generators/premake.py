@@ -12,11 +12,13 @@ class PremakeDeps(object):
         self.bin_paths = ",\n".join('"%s"' % p.replace("\\", "/")
                                     for p in deps_cpp_info.bin_paths)
         self.libs = ", ".join('"%s"' % p.replace('"', '\\"') for p in deps_cpp_info.libs)
-        self.defines = ", ".join('"%s"' % p for p in deps_cpp_info.defines)
+        self.system_libs = ", ".join('"%s"' % p.replace('"', '\\"') for p in deps_cpp_info.system_libs)
+        self.defines = ", ".join('"%s"' % p.replace('"', '\\"') for p in deps_cpp_info.defines)
         self.cxxflags = ", ".join('"%s"' % p for p in deps_cpp_info.cxxflags)
         self.cflags = ", ".join('"%s"' % p for p in deps_cpp_info.cflags)
         self.sharedlinkflags = ", ".join('"%s"' % p.replace('"', '\\"') for p in deps_cpp_info.sharedlinkflags)
         self.exelinkflags = ", ".join('"%s"' % p.replace('"', '\\"') for p in deps_cpp_info.exelinkflags)
+        self.frameworks = ", ".join('"%s.framework"' % p.replace('"', '\\"') for p in deps_cpp_info.frameworks)
 
         self.rootpath = "%s" % deps_cpp_info.rootpath.replace("\\", "/")
 
@@ -34,11 +36,13 @@ class PremakeGenerator(Generator):
                     'conan_libdirs{dep} = {{{deps.lib_paths}}}\n'
                     'conan_bindirs{dep} = {{{deps.bin_paths}}}\n'
                     'conan_libs{dep} = {{{deps.libs}}}\n'
+                    'conan_system_libs{dep} = {{{deps.system_libs}}}\n'
                     'conan_defines{dep} = {{{deps.defines}}}\n'
                     'conan_cxxflags{dep} = {{{deps.cxxflags}}}\n'
                     'conan_cflags{dep} = {{{deps.cflags}}}\n'
                     'conan_sharedlinkflags{dep} = {{{deps.sharedlinkflags}}}\n'
-                    'conan_exelinkflags{dep} = {{{deps.exelinkflags}}}\n')
+                    'conan_exelinkflags{dep} = {{{deps.exelinkflags}}}\n'
+                    'conan_frameworks{dep} = {{{deps.frameworks}}}\n')
 
         sections = ["#!lua"]
 
@@ -65,6 +69,8 @@ class PremakeGenerator(Generator):
             "    includedirs{conan_includedirs}\n"
             "    libdirs{conan_libdirs}\n"
             "    links{conan_libs}\n"
+            "    links{conan_system_libs}\n"
+            "    links{conan_frameworks}\n"
             "    defines{conan_defines}\n"
             "    bindirs{conan_bindirs}\n"
             "end\n")

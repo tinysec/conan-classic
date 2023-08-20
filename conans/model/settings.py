@@ -45,7 +45,7 @@ class SettingsItem(object):
             self._definition = "ANY"
         else:
             # list or tuple of possible values
-            self._definition = sorted(str(v) for v in definition)
+            self._definition = [str(v) for v in definition]
 
     def __contains__(self, value):
         return value in (self._value or "")
@@ -202,16 +202,29 @@ class Settings(object):
         self._data = {str(k): SettingsItem(v, "%s.%s" % (name, k))
                       for k, v in definition.items()}
 
-    def get_safe(self, name):
+    def get_safe(self, name, default=None):
         try:
             tmp = self
             for prop in name.split("."):
                 tmp = getattr(tmp, prop, None)
         except ConanException:
-            return None
+            return default
         if tmp is not None and tmp.value and tmp.value != "None":  # In case of subsettings is None
             return str(tmp)
-        return None
+        return default
+
+    def rm_safe(self, name):
+        try:
+            tmp = self
+            attr_ = name
+            if "." in name:
+                fields = name.split(".")
+                attr_ = fields.pop()
+                for prop in fields:
+                    tmp = getattr(tmp, prop)
+            delattr(tmp, attr_)
+        except ConanException:
+            pass
 
     def copy(self):
         """ deepcopy, recursive
@@ -233,7 +246,10 @@ class Settings(object):
 
     @staticmethod
     def loads(text):
-        return Settings(yaml.safe_load(text) or {})
+        try:
+            return Settings(yaml.safe_load(text) or {})
+        except (yaml.YAMLError, AttributeError) as ye:
+            raise ConanException("Invalid settings.yml format: {}".format(ye))
 
     def validate(self):
         for field in self.fields:
@@ -293,9 +309,9 @@ class Settings(object):
     def iteritems(self):
         return self.values_list
 
-    @values_list.setter
-    def values_list(self, vals):
+    def update_values(self, vals):
         """ receives a list of tuples (compiler.version, value)
+        This is more an updated than a setter
         """
         assert isinstance(vals, list), vals
         for (name, value) in vals:
@@ -308,7 +324,7 @@ class Settings(object):
     @values.setter
     def values(self, vals):
         assert isinstance(vals, Values)
-        self.values_list = vals.as_list()
+        self.update_values(vals.as_list())
 
     def constraint(self, constraint_def):
         """ allows to restrict a given Settings object with the input of another Settings object

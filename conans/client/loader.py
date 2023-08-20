@@ -1,64 +1,125 @@
+import fnmatch
 import imp
 import inspect
 import os
+import re
 import sys
+import types
 import uuid
 
 import yaml
 
-from conans.client.generators import registered_generators
+from pathlib import Path
+
+from conan.tools.cmake import cmake_layout
+from conan.tools.google import bazel_layout
+from conan.tools.microsoft import vs_layout
+from conans.client.conf.required_version import validate_conan_version
 from conans.client.loader_txt import ConanFileTextLoader
 from conans.client.tools.files import chdir
-from conans.errors import ConanException, NotFoundException, ConanInvalidConfiguration
+from conans.errors import ConanException, NotFoundException, ConanInvalidConfiguration, \
+    conanfile_exception_formatter
 from conans.model.conan_file import ConanFile
 from conans.model.conan_generator import Generator
 from conans.model.options import OptionsValues
 from conans.model.ref import ConanFileReference
 from conans.model.settings import Settings
-from conans.model.values import Values
 from conans.paths import DATA_YML
 from conans.util.files import load
 
 
-class ProcessedProfile(object):
-    def __init__(self, profile, create_reference=None):
-        self._settings = profile.processed_settings
-        self._user_options = profile.options.copy()
-
-        self._package_settings = profile.package_settings_values
-        self._env_values = profile.env_values
-        # Make sure the paths are normalized first, so env_values can be just a copy
-        self._dev_reference = create_reference
-
-
 class ConanFileLoader(object):
-    def __init__(self, runner, output, python_requires):
+
+    def __init__(self, runner, output, python_requires, generator_manager=None, pyreq_loader=None,
+                 requester=None):
         self._runner = runner
+        self._generator_manager = generator_manager
         self._output = output
+        self._pyreq_loader = pyreq_loader
         self._python_requires = python_requires
         sys.modules["conans"].python_requires = python_requires
-        self.cached_conanfiles = {}
+        self._cached_conanfile_classes = {}
+        self._requester = requester
 
-    def invalidate_caches(self):
-        self.cached_conanfiles = {}
-        self._python_requires.invalidate_caches()
+    def load_basic(self, conanfile_path, lock_python_requires=None, user=None, channel=None,
+                   display=""):
+        """ loads a conanfile basic object without evaluating anything
+        """
+        return self.load_basic_module(conanfile_path, lock_python_requires, user, channel,
+                                      display)[0]
 
-    def load_class(self, conanfile_path):
-        conanfile = self.cached_conanfiles.get(conanfile_path)
-        if conanfile:
-            return conanfile
+    def load_basic_module(self, conanfile_path, lock_python_requires=None, user=None, channel=None,
+                          display=""):
+        """ loads a conanfile basic object without evaluating anything, returns the module too
+        """
+        cached = self._cached_conanfile_classes.get(conanfile_path)
+        if cached and cached[1] == lock_python_requires:
+            conanfile = cached[0](self._output, self._runner, display, user, channel)
+            conanfile._conan_requester = self._requester
+            if hasattr(conanfile, "init") and callable(conanfile.init):
+                with conanfile_exception_formatter(str(conanfile), "init"):
+                    conanfile.init()
+            return conanfile, cached[2]
 
+        if lock_python_requires is not None:
+            self._python_requires.locked_versions = {r.name: r for r in lock_python_requires}
         try:
             self._python_requires.valid = True
-            _, conanfile = parse_conanfile(conanfile_path, self._python_requires)
+            module, conanfile = parse_conanfile(conanfile_path, self._python_requires,
+                                                self._generator_manager)
             self._python_requires.valid = False
-            self.cached_conanfiles[conanfile_path] = conanfile
-            conanfile.conan_data = self._load_data(conanfile_path)
-            return conanfile
+
+            self._python_requires.locked_versions = None
+
+            # This is the new py_requires feature, to supersede the old python_requires
+            if self._pyreq_loader:
+                self._pyreq_loader.load_py_requires(conanfile, lock_python_requires, self)
+
+            conanfile.recipe_folder = os.path.dirname(conanfile_path)
+            conanfile.recipe_path = Path(conanfile.recipe_folder)
+
+            # If the scm is inherited, create my own instance
+            if hasattr(conanfile, "scm") and "scm" not in conanfile.__class__.__dict__:
+                if isinstance(conanfile.scm, dict):
+                    conanfile.scm = conanfile.scm.copy()
+
+            # Load and populate dynamic fields from the data file
+            conan_data = self._load_data(conanfile_path)
+            conanfile.conan_data = conan_data
+            if conan_data and '.conan' in conan_data:
+                scm_data = conan_data['.conan'].get('scm')
+                if scm_data:
+                    conanfile.scm.update(scm_data)
+
+            self._cached_conanfile_classes[conanfile_path] = (conanfile, lock_python_requires,
+                                                              module)
+            result = conanfile(self._output, self._runner, display, user, channel)
+            result._conan_requester = self._requester
+            if hasattr(result, "init") and callable(result.init):
+                with conanfile_exception_formatter(str(result), "init"):
+                    result.init()
+            return result, module
         except ConanException as e:
             raise ConanException("Error loading conanfile at '{}': {}".format(conanfile_path, e))
 
-    def _load_data(self, conanfile_path):
+    def load_generators(self, conanfile_path):
+        """ Load generator classes from a module. Any non-generator classes
+        will be ignored. python_requires is not processed.
+        """
+        """ Parses a python in-memory module and adds any generators found
+            to the provided generator list
+            @param conanfile_module: the module to be processed
+            """
+        conanfile_module, module_id = _parse_conanfile(conanfile_path)
+        for name, attr in conanfile_module.__dict__.items():
+            if (name.startswith("_") or not inspect.isclass(attr) or
+                    attr.__dict__.get("__module__") != module_id):
+                continue
+            if issubclass(attr, Generator) and attr != Generator:
+                self._generator_manager.add(attr.__name__, attr, custom=True)
+
+    @staticmethod
+    def _load_data(conanfile_path):
         data_path = os.path.join(os.path.dirname(conanfile_path), DATA_YML)
         if not os.path.exists(data_path):
             return None
@@ -70,159 +131,249 @@ class ConanFileLoader(object):
 
         return data or {}
 
-    def load_export(self, conanfile_path, name, version, user, channel):
-        conanfile = self.load_class(conanfile_path)
+    def load_named(self, conanfile_path, name, version, user, channel, lock_python_requires=None):
+        """ loads the basic conanfile object and evaluates its name and version
+        """
+        conanfile, _ = self.load_basic_module(conanfile_path, lock_python_requires, user, channel)
+
         # Export does a check on existing name & version
-        if "name" in conanfile.__dict__:
-            if name and name != conanfile.name:
-                raise ConanException("Package recipe exported with name %s!=%s"
-                                     % (name, conanfile.name))
-        elif not name:
-            raise ConanException("conanfile didn't specify name")
-        else:
+        if name:
+            if conanfile.name and name != conanfile.name:
+                raise ConanException("Package recipe with name %s!=%s" % (name, conanfile.name))
             conanfile.name = name
 
-        if "version" in conanfile.__dict__:
-            if version and version != conanfile.version:
-                raise ConanException("Package recipe exported with version %s!=%s"
+        if version:
+            if conanfile.version and version != conanfile.version:
+                raise ConanException("Package recipe with version %s!=%s"
                                      % (version, conanfile.version))
-        elif not version:
-            raise ConanException("conanfile didn't specify version")
-        else:
             conanfile.version = version
+
+        if hasattr(conanfile, "set_name"):
+            with conanfile_exception_formatter("conanfile.py", "set_name"):
+                conanfile.set_name()
+            if name and name != conanfile.name:
+                raise ConanException("Package recipe with name %s!=%s" % (name, conanfile.name))
+        if hasattr(conanfile, "set_version"):
+            with conanfile_exception_formatter("conanfile.py", "set_version"):
+                conanfile.set_version()
+            if version and version != conanfile.version:
+                raise ConanException("Package recipe with version %s!=%s"
+                                     % (version, conanfile.version))
+
+        return conanfile
+
+    def load_export(self, conanfile_path, name, version, user, channel, lock_python_requires=None):
+        """ loads the conanfile and evaluates its name, version, and enforce its existence
+        """
+        conanfile = self.load_named(conanfile_path, name, version, user, channel,
+                                    lock_python_requires)
+        if not conanfile.name:
+            raise ConanException("conanfile didn't specify name")
+        if not conanfile.version:
+            raise ConanException("conanfile didn't specify version")
+
+        # FIXME Conan 2.0, conanfile.version should be a string, not a version object
+
         ref = ConanFileReference(conanfile.name, conanfile.version, user, channel)
-        return conanfile(self._output, self._runner, str(ref), user, channel)
+        conanfile.display_name = str(ref)
+        conanfile.output.scope = conanfile.display_name
+        return conanfile
 
     @staticmethod
-    def _initialize_conanfile(conanfile, processed_profile):
+    def _initialize_conanfile(conanfile, profile):
         # Prepare the settings for the loaded conanfile
         # Mixing the global settings with the specified for that name if exist
-        tmp_settings = processed_profile._settings.copy()
-        if (processed_profile._package_settings and
-                conanfile.name in processed_profile._package_settings):
-            # Update the values, keeping old ones (confusing assign)
-            values_tuple = processed_profile._package_settings[conanfile.name]
-            tmp_settings.values = Values.from_list(values_tuple)
-
-        conanfile.initialize(tmp_settings, processed_profile._env_values)
-
-    def load_consumer(self, conanfile_path, processed_profile, name=None, version=None, user=None,
-                      channel=None, test=None):
-
-        conanfile_class = self.load_class(conanfile_path)
-        if name and conanfile_class.name and name != conanfile_class.name:
-            raise ConanException("Package recipe name %s!=%s" % (name, conanfile_class.name))
-        if version and conanfile_class.version and version != conanfile_class.version:
-            raise ConanException("Package recipe version %s!=%s"
-                                 % (version, conanfile_class.version))
-        conanfile_class.name = name or conanfile_class.name
-        conanfile_class.version = version or conanfile_class.version
-        if test:
-            display_name = "%s (test package)" % test
+        tmp_settings = profile.processed_settings.copy()
+        package_settings_values = profile.package_settings_values
+        if conanfile._conan_user is not None:
+            ref_str = "%s/%s@%s/%s" % (conanfile.name, conanfile.version,
+                                       conanfile._conan_user, conanfile._conan_channel)
         else:
-            ref = ConanFileReference(conanfile_class.name, conanfile_class.version, user, channel,
-                                     validate=False)
-            if ref.name or ref.version or ref.user or ref.channel:
-                display_name = "%s (%s)" % (os.path.basename(conanfile_path), ref)
-            else:
-                display_name = os.path.basename(conanfile_path)
-        conanfile = conanfile_class(self._output, self._runner, display_name, user, channel)
+            ref_str = "%s/%s" % (conanfile.name, conanfile.version)
+        if package_settings_values:
+            # First, try to get a match directly by name (without needing *)
+            # TODO: Conan 2.0: We probably want to remove this, and leave a pure fnmatch
+            pkg_settings = package_settings_values.get(conanfile.name)
+
+            if conanfile.develop and "&" in package_settings_values:
+                # "&" overrides the "name" scoped settings.
+                pkg_settings = package_settings_values.get("&")
+
+            if pkg_settings is None:  # If there is not exact match by package name, do fnmatch
+                for pattern, settings in package_settings_values.items():
+                    if fnmatch.fnmatchcase(ref_str, pattern):
+                        pkg_settings = settings
+                        break
+            if pkg_settings:
+                tmp_settings.update_values(pkg_settings)
+
+        conanfile.initialize(tmp_settings, profile.env_values, profile.buildenv, profile.runenv)
+        conanfile.conf = profile.conf.get_conanfile_conf(ref_str)
+
+    def load_consumer(self, conanfile_path, profile_host, name=None, version=None, user=None,
+                      channel=None, lock_python_requires=None, require_overrides=None):
+        """ loads a conanfile.py in user space. Might have name/version or not
+        """
+        conanfile = self.load_named(conanfile_path, name, version, user, channel,
+                                    lock_python_requires)
+
+        ref = ConanFileReference(conanfile.name, conanfile.version, user, channel, validate=False)
+        if str(ref):
+            conanfile.display_name = "%s (%s)" % (os.path.basename(conanfile_path), str(ref))
+        else:
+            conanfile.display_name = os.path.basename(conanfile_path)
+        conanfile.output.scope = conanfile.display_name
         conanfile.in_local_cache = False
         try:
-            self._initialize_conanfile(conanfile, processed_profile)
+            conanfile.develop = True
+            self._initialize_conanfile(conanfile, profile_host)
 
             # The consumer specific
-            conanfile.develop = True
-            processed_profile._user_options.descope_options(conanfile.name)
-            conanfile.options.initialize_upstream(processed_profile._user_options,
+            profile_host.user_options.descope_options(conanfile.name)
+            conanfile.options.initialize_upstream(profile_host.user_options,
                                                   name=conanfile.name)
-            processed_profile._user_options.clear_unscoped_options()
+            profile_host.user_options.clear_unscoped_options()
 
-            return conanfile
-        except Exception as e:  # re-raise with file name
-            raise ConanException("%s: %s" % (conanfile_path, str(e)))
+            if require_overrides is not None:
+                for req_override in require_overrides:
+                    req_override = ConanFileReference.loads(req_override)
+                    conanfile.requires.override(req_override)
 
-    def load_conanfile(self, conanfile_path, processed_profile, ref):
-        conanfile_class = self.load_class(conanfile_path)
-        conanfile_class.name = ref.name
-        conanfile_class.version = ref.version
-        conanfile = conanfile_class(self._output, self._runner, str(ref), ref.user, ref.channel)
-        if processed_profile._dev_reference and processed_profile._dev_reference == ref:
-            conanfile.develop = True
-        try:
-            self._initialize_conanfile(conanfile, processed_profile)
             return conanfile
         except ConanInvalidConfiguration:
             raise
         except Exception as e:  # re-raise with file name
             raise ConanException("%s: %s" % (conanfile_path, str(e)))
 
-    def load_conanfile_txt(self, conan_txt_path, processed_profile, ref=None):
+    def load_conanfile(self, conanfile_path, profile, ref, lock_python_requires=None):
+        """ load a conanfile with a full reference, name, version, user and channel are obtained
+        from the reference, not evaluated. Main way to load from the cache
+        """
+        try:
+            conanfile, _ = self.load_basic_module(conanfile_path, lock_python_requires,
+                                                  ref.user, ref.channel, str(ref))
+        except Exception as e:
+            raise ConanException("%s: Cannot load recipe.\n%s" % (str(ref), str(e)))
+
+        conanfile.name = ref.name
+        # FIXME Conan 2.0, version should be a string not a Version object
+        conanfile.version = ref.version
+
+        if profile.dev_reference and profile.dev_reference == ref:
+            conanfile.develop = True
+        try:
+            self._initialize_conanfile(conanfile, profile)
+            return conanfile
+        except ConanInvalidConfiguration:
+            raise
+        except Exception as e:  # re-raise with file name
+            raise ConanException("%s: %s" % (conanfile_path, str(e)))
+
+    def load_conanfile_txt(self, conan_txt_path, profile_host, ref=None, require_overrides=None):
         if not os.path.exists(conan_txt_path):
             raise NotFoundException("Conanfile not found!")
 
         contents = load(conan_txt_path)
         path, basename = os.path.split(conan_txt_path)
         display_name = "%s (%s)" % (basename, ref) if ref and ref.name else basename
-        conanfile = self._parse_conan_txt(contents, path, display_name, processed_profile)
+        conanfile = self._parse_conan_txt(contents, path, display_name, profile_host)
+
+        if require_overrides is not None:
+            for req_override in require_overrides:
+                req_override = ConanFileReference.loads(req_override)
+                conanfile.requires.override(req_override)
+
         return conanfile
 
-    def _parse_conan_txt(self, contents, path, display_name, processed_profile):
+    def _parse_conan_txt(self, contents, path, display_name, profile):
         conanfile = ConanFile(self._output, self._runner, display_name)
-        conanfile.initialize(Settings(), processed_profile._env_values)
+        tmp_settings = profile.processed_settings.copy()
+        package_settings_values = profile.package_settings_values
+        if "&" in package_settings_values:
+            pkg_settings = package_settings_values.get("&")
+            if pkg_settings:
+                tmp_settings.update_values(pkg_settings)
+        conanfile.initialize(Settings(), profile.env_values, profile.buildenv, profile.runenv)
+        conanfile.conf = profile.conf.get_conanfile_conf(None)
         # It is necessary to copy the settings, because the above is only a constraint of
         # conanfile settings, and a txt doesn't define settings. Necessary for generators,
         # as cmake_multi, that check build_type.
-        conanfile.settings = processed_profile._settings.copy_values()
+        conanfile.settings = tmp_settings.copy_values()
 
         try:
             parser = ConanFileTextLoader(contents)
         except Exception as e:
             raise ConanException("%s:\n%s" % (path, str(e)))
         for reference in parser.requirements:
-            ConanFileReference.loads(reference)  # Raise if invalid
-            conanfile.requires.add(reference)
+            ref = ConanFileReference.loads(reference)  # Raise if invalid
+            conanfile.requires.add_ref(ref)
         for build_reference in parser.build_requirements:
             ConanFileReference.loads(build_reference)
             if not hasattr(conanfile, "build_requires"):
                 conanfile.build_requires = []
             conanfile.build_requires.append(build_reference)
+        if parser.layout:
+            layout_method = {"cmake_layout": cmake_layout,
+                             "vs_layout": vs_layout,
+                             "bazel_layout": bazel_layout}.get(parser.layout)
+            if not layout_method:
+                raise ConanException("Unknown predefined layout '{}' declared in "
+                                     "conanfile.txt".format(parser.layout))
+
+            def layout(self):
+                layout_method(self)
+
+            conanfile.layout = types.MethodType(layout, conanfile)
 
         conanfile.generators = parser.generators
-
-        options = OptionsValues.loads(parser.options)
+        try:
+            options = OptionsValues.loads(parser.options)
+        except Exception:
+            raise ConanException("Error while parsing [options] in conanfile\n"
+                                 "Options should be specified as 'pkg:option=value'")
         conanfile.options.values = options
-        conanfile.options.initialize_upstream(processed_profile._user_options)
+        conanfile.options.initialize_upstream(profile.user_options)
 
         # imports method
         conanfile.imports = parser.imports_method(conanfile)
         return conanfile
 
-    def load_virtual(self, references, processed_profile, scope_options=True,
-                     build_requires_options=None):
+    def load_virtual(self, references, profile_host, scope_options=True,
+                     build_requires_options=None, is_build_require=False, require_overrides=None):
         # If user don't specify namespace in options, assume that it is
         # for the reference (keep compatibility)
         conanfile = ConanFile(self._output, self._runner, display_name="virtual")
-        conanfile.initialize(processed_profile._settings.copy(), processed_profile._env_values)
-        conanfile.settings = processed_profile._settings.copy_values()
+        conanfile.initialize(profile_host.processed_settings.copy(),
+                             profile_host.env_values, profile_host.buildenv, profile_host.runenv)
+        conanfile.conf = profile_host.conf.get_conanfile_conf(None)
+        conanfile.settings = profile_host.processed_settings.copy_values()
 
-        for reference in references:
-            conanfile.requires.add(reference.full_repr())  # Convert to string necessary
+        if is_build_require:
+            conanfile.build_requires = [str(r) for r in references]
+        else:
+            for reference in references:
+                conanfile.requires.add_ref(reference)
+
+        if require_overrides is not None:
+            for req_override in require_overrides:
+                req_override = ConanFileReference.loads(req_override)
+                conanfile.requires.override(req_override)
+
         # Allows options without package namespace in conan install commands:
         #   conan install zlib/1.2.8@lasote/stable -o shared=True
         if scope_options:
             assert len(references) == 1
-            processed_profile._user_options.scope_options(references[0].name)
+            profile_host.user_options.scope_options(references[0].name)
         if build_requires_options:
             conanfile.options.initialize_upstream(build_requires_options)
         else:
-            conanfile.options.initialize_upstream(processed_profile._user_options)
+            conanfile.options.initialize_upstream(profile_host.user_options)
 
         conanfile.generators = []  # remove the default txt generator
         return conanfile
 
 
-def _parse_module(conanfile_module, module_id):
+def _parse_module(conanfile_module, module_id, generator_manager):
     """ Parses a python in-memory module, to extract the classes, mainly the main
     class defining the Recipe, but also process possible existing generators
     @param conanfile_module: the module to be processed
@@ -240,7 +391,7 @@ def _parse_module(conanfile_module, module_id):
             else:
                 raise ConanException("More than 1 conanfile in the file")
         elif issubclass(attr, Generator) and attr != Generator:
-            registered_generators.add(attr.__name__, attr, custom=True)
+            generator_manager.add(attr.__name__, attr, custom=True)
 
     if result is None:
         raise ConanException("No subclass of ConanFile")
@@ -248,13 +399,14 @@ def _parse_module(conanfile_module, module_id):
     return result
 
 
-def parse_conanfile(conanfile_path, python_requires):
+def parse_conanfile(conanfile_path, python_requires, generator_manager):
     with python_requires.capture_requires() as py_requires:
         module, filename = _parse_conanfile(conanfile_path)
         try:
-            conanfile = _parse_module(module, filename)
+            conanfile = _parse_module(module, filename, generator_manager)
 
             # Check for duplicates
+            # TODO: move it into PythonRequires
             py_reqs = {}
             for it in py_requires:
                 if it.ref.name in py_reqs:
@@ -264,7 +416,8 @@ def parse_conanfile(conanfile_path, python_requires):
                 py_reqs[it.ref.name] = it
 
             # Make them available to the conanfile itself
-            conanfile.python_requires = py_reqs
+            if py_reqs:
+                conanfile.python_requires = py_reqs
             return module, conanfile
         except Exception as e:  # re-raise with file name
             raise ConanException("%s: %s" % (conanfile_path, str(e)))
@@ -283,9 +436,21 @@ def _parse_conanfile(conan_file_path):
     try:
         old_modules = list(sys.modules.keys())
         with chdir(current_dir):
-            sys.dont_write_bytecode = True
-            loaded = imp.load_source(module_id, conan_file_path)
-            sys.dont_write_bytecode = False
+            old_dont_write_bytecode = sys.dont_write_bytecode
+            try:
+                sys.dont_write_bytecode = True
+                # FIXME: imp is deprecated in favour of implib
+                loaded = imp.load_source(module_id, conan_file_path)
+                sys.dont_write_bytecode = old_dont_write_bytecode
+            except ImportError:
+                version_txt = _get_required_conan_version_without_loading(conan_file_path)
+                if version_txt:
+                    validate_conan_version(version_txt)
+                raise
+
+            required_conan_version = getattr(loaded, "required_conan_version", None)
+            if required_conan_version:
+                validate_conan_version(required_conan_version)
 
         # These lines are necessary, otherwise local conanfile imports with same name
         # collide, but no error, and overwrite other packages imports!!
@@ -318,3 +483,20 @@ def _parse_conanfile(conan_file_path):
         sys.path.pop(0)
 
     return loaded, module_id
+
+
+def _get_required_conan_version_without_loading(conan_file_path):
+    # First, try to detect the required_conan_version in "text" mode
+    # https://github.com/conan-io/conan/issues/11239
+    contents = load(conan_file_path)
+
+    txt_version = None
+
+    try:
+        found = re.search(r"required_conan_version\s*=\s*(.*)", contents)
+        if found:
+            txt_version = found.group(1).replace('"', "")
+    except:
+        pass
+
+    return txt_version

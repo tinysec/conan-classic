@@ -30,7 +30,7 @@ class ConfigParser(object):
     def __init__(self, text, allowed_fields=None, parse_lines=False, raise_unexpected_field=True):
         self._sections = {}
         self._allowed_fields = allowed_fields or []
-        pattern = re.compile("^\[([a-z_]{2,50})\]")
+        pattern = re.compile(r"^\[([a-z_]{2,50})]")
         current_lines = None
         for line in text.splitlines():
             line = line.strip()
@@ -54,7 +54,8 @@ class ConfigParser(object):
                 if current_lines is None:
                     raise ConanException("ConfigParser: Unexpected line '%s'" % line)
                 if parse_lines:
-                    line = line.split('#')[0]
+                    line = line.split(' #', 1)[0]
+                    line = line.split('    #', 1)[0]
                     line = line.strip()
                 current_lines.append(line)
 

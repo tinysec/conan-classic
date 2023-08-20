@@ -1,18 +1,21 @@
 # coding=utf-8
 
 import os
-import tempfile
+import platform
 import textwrap
 import unittest
 
+import pytest
 from parameterized import parameterized
 
 from conans.model.editable_layout import DEFAULT_LAYOUT_FILE, LAYOUTS_FOLDER
-from conans.test import CONAN_TEST_FOLDER
 from conans.test.utils.tools import TestClient
+from conans.tools import replace_in_file
 from conans.util.files import save
+from conans.test.utils.test_files import temp_folder
 
 
+@pytest.mark.tool_cmake
 class HeaderOnlyLibTestClient(TestClient):
     header = textwrap.dedent("""\
         #include <iostream>
@@ -81,25 +84,25 @@ class HeaderOnlyLibTestClient(TestClient):
                    "src/include-local/hello.hpp": self.header.format(word=hello_word,
                                                                      origin='local')})
 
-
+@pytest.mark.tool_cmake
 class EditableReferenceTest(unittest.TestCase):
 
     @parameterized.expand([(False, True), (True, False), (True, True), (False, False)])
     def test_header_only(self, use_repo_file, use_cache_file):
         # We need two clients sharing the same Conan cache
-        base_folder = tempfile.mkdtemp(suffix='conans', dir=CONAN_TEST_FOLDER)
+        cache_folder = temp_folder()
 
         # Editable project
         client_editable = HeaderOnlyLibTestClient(use_repo_file=use_repo_file,
                                                   use_cache_file=use_cache_file,
-                                                  base_folder=base_folder)
+                                                  cache_folder=cache_folder)
         if use_repo_file:
             client_editable.run("editable add . MyLib/0.1@user/editable --layout=mylayout")
         else:
             client_editable.run("editable add . MyLib/0.1@user/editable")
 
         # Consumer project
-        client = TestClient(base_folder=base_folder)
+        client = TestClient(cache_folder=cache_folder)
         conanfile_py = """
 import os
 from conans import ConanFile, CMake
@@ -144,7 +147,10 @@ int main() {
                      "src/main.cpp": main_cpp})
 
         # Build consumer project
-        client.run("create . pkg/0.0@user/testing")
+        # FIXME: this is a hack to force VS2017 for tests
+        settings = "-s compiler.version=15" if platform.system() == "Windows" else ""
+        
+        client.run(f"create . pkg/0.0@user/testing {settings}")
         self.assertIn("    MyLib/0.1@user/editable from user folder - Editable", client.out)
         self.assertIn("    MyLib/0.1@user/editable:"
                       "5ab84d6acfe1f23c4fae0ab88f26e3a396351ac9 - Editable", client.out)
@@ -164,7 +170,7 @@ int main() {
 
         # Modify editable and build again
         client_editable.update_hello_word(hello_word="EDITED")
-        client.run("create . pkg/0.0@user/testing")
+        client.run(f"create . pkg/0.0@user/testing {settings}")
         self.assertIn("Hello EDITED!", client.out)
         if use_repo_file:  # Repo file will override folders from cache
             self.assertIn("...using inrepo", client.out)

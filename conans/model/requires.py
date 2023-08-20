@@ -21,6 +21,19 @@ class Requirement(object):
         self.override = override
         self.private = private
         self.build_require = False
+        self.build_require_context = None
+        self.force_host_context = False
+        self._locked_id = None
+
+    def lock(self, locked_ref, locked_id):
+        assert locked_ref is not None
+        # When a requirement is locked it doesn't has ranges
+        self.ref = self.range_ref = locked_ref
+        self._locked_id = locked_id  # And knows the ID of the locked node that is pointing to
+
+    @property
+    def locked_id(self):
+        return self._locked_id
 
     @property
     def version_range(self):
@@ -30,6 +43,13 @@ class Requirement(object):
         version = self.range_ref.version
         if version.startswith("[") and version.endswith("]"):
             return version[1:-1]
+
+    @property
+    def alias(self):
+        version = self.ref.version
+        if version.startswith("(") and version.endswith(")"):
+            return ConanFileReference(self.ref.name, version[1:-1], self.ref.user, self.ref.channel,
+                                      self.ref.revision, validate=False)
 
     @property
     def is_resolved(self):
@@ -87,18 +107,36 @@ class Requirements(OrderedDict):
     def add(self, reference, private=False, override=False):
         """ to define requirements by the user in text, prior to any propagation
         """
+        if reference is None:
+            return
         assert isinstance(reference, six.string_types)
-
         ref = ConanFileReference.loads(reference)
+        self.add_ref(ref, private, override)
+
+    def add_ref(self, ref, private=False, override=False):
         name = ref.name
 
         new_requirement = Requirement(ref, private, override)
         old_requirement = self.get(name)
         if old_requirement and old_requirement != new_requirement:
-            raise ConanException("Duplicated requirement %s != %s"
-                                 % (old_requirement, new_requirement))
+            if old_requirement.override:
+                # If this is a consumer package with requirements() method,
+                # conan install . didn't add the requires yet, so they couldnt be overriden at
+                # the override() method, override now
+                self[name] = Requirement(old_requirement.ref, private, override)
+            else:
+                raise ConanException("Duplicated requirement %s != %s"
+                                     % (old_requirement, new_requirement))
         else:
             self[name] = new_requirement
+
+    def override(self, ref):
+        name = ref.name
+        old_requirement = self.get(ref.name)
+        if old_requirement is not None:
+            self[name] = Requirement(ref, private=False, override=False)
+        else:
+            self[name] = Requirement(ref, private=False, override=True)
 
     def update(self, down_reqs, output, own_ref, down_ref):
         """ Compute actual requirement values when downstream values are defined
@@ -121,25 +159,28 @@ class Requirements(OrderedDict):
         for name, req in self.items():
             if req.private:
                 continue
-            if name in down_reqs:
+            if name in down_reqs and not req.locked_id:
                 other_req = down_reqs[name]
                 # update dependency
                 other_ref = other_req.ref
                 if other_ref and other_ref != req.ref:
-                    msg = "requirement %s overridden by %s to %s " \
-                          % (req.ref, down_ref or "your conanfile", other_ref)
+                    down_reference_str = str(down_ref) if down_ref else ""
+                    msg = "%s: requirement %s overridden by %s to %s " \
+                          % (own_ref, req.ref, down_reference_str or "your conanfile", other_ref)
 
                     if error_on_override and not other_req.override:
                         raise ConanException(msg)
 
-                    msg = "%s %s" % (own_ref, msg)
                     output.warn(msg)
                     req.ref = other_ref
+                    # FIXME: We should compute the intersection of version_ranges
+                    if req.version_range and not other_req.version_range:
+                        req.range_ref = other_req.range_ref  # Override
 
             new_reqs[name] = req
         return new_reqs
 
-    def __call__(self, reference, private=False, override=False):
+    def __call__(self, reference, private=False, override=False, **kwargs):
         self.add(reference, private, override)
 
     def __repr__(self):

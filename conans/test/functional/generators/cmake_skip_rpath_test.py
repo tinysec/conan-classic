@@ -1,6 +1,8 @@
 import platform
 import unittest
 
+import pytest
+
 from conans.test.utils.tools import TestClient
 
 conanfile_py = """
@@ -30,6 +32,7 @@ ENDIF()
 """
 
 
+@pytest.mark.tool_cmake
 class CMakeSkipRpathTest(unittest.TestCase):
 
     def test_skip_flag(self):
@@ -41,7 +44,7 @@ class CMakeSkipRpathTest(unittest.TestCase):
                          "CMakeLists.txt": cmake % way_to_skip}, clean_first=True)
             client.run('install . -g cmake --build')
             generator = '-G "Visual Studio 15 Win64"' if platform.system() == "Windows" else ""
-            client.runner("cmake . %s" % generator, cwd=client.current_folder)
+            client.run_command("cmake . %s" % generator)
             self.assertNotIn("Conan: Adjusting default RPATHs Conan policies", client.out)
             self.assertIn("Build files have been written", client.out)
             if way_to_skip == "SKIP_RPATH":
@@ -53,7 +56,7 @@ class CMakeSkipRpathTest(unittest.TestCase):
                         clean_first=True)
 
             client.run('install . -g cmake --build')
-            client.runner("cmake . %s" % generator, cwd=client.current_folder)
+            client.run_command("cmake . %s" % generator)
             self.assertNotIn("Conan: Adjusting default RPATHs Conan policies", client.out)
             self.assertIn("Build files have been written", client.out)
 
@@ -63,7 +66,7 @@ class CMakeSkipRpathTest(unittest.TestCase):
 
             if platform.system() == "Darwin":
                 client.run('install . -g cmake --build')
-                client.runner("cmake .", cwd=client.current_folder)
+                client.run_command("cmake .")
                 self.assertIn("Conan: Adjusting default RPATHs Conan policies", client.out)
                 self.assertIn("Build files have been written", client.out)
                 self.assertIn("RPath was skipped", client.out)

@@ -9,8 +9,18 @@
 
 """
 from contextlib import contextmanager
+from subprocess import CalledProcessError
 
 from conans.util.env_reader import get_env
+from conans.util.files import decode_text
+
+
+class CalledProcessErrorWithStderr(CalledProcessError):
+    def __str__(self):
+        ret = super(CalledProcessErrorWithStderr, self).__str__()
+        if self.output:
+            ret += "\n" + decode_text(self.output)
+        return ret
 
 
 @contextmanager
@@ -22,8 +32,12 @@ def conanfile_exception_formatter(conanfile_name, func_name):
     """
     try:
         yield
+    # TODO: Move ConanInvalidSystemRequirements, ConanInvalidConfiguration from here?
+    except ConanInvalidSystemRequirements as exc:
+        msg = "{}: Invalid system requirements: {}".format(conanfile_name, exc)
+        raise ConanInvalidSystemRequirements(msg)
     except ConanInvalidConfiguration as exc:
-        msg = "{}: Invalid configuration: {}".format(conanfile_name, exc)  # TODO: Move from here?
+        msg = "{}: Invalid configuration: {}".format(conanfile_name, exc)
         raise ConanInvalidConfiguration(msg)
     except Exception as exc:
         msg = _format_conanfile_exception(conanfile_name, func_name, exc)
@@ -92,6 +106,13 @@ class ConanException(Exception):
         return exception_message_safe(msg)
 
 
+class ConanV2Exception(ConanException):
+    def __str__(self):
+        msg = super(ConanV2Exception, self).__str__()
+        # TODO: Add a link to a public webpage with Conan roadmap to v2
+        return "Conan v2 incompatible: {}".format(msg)
+
+
 class OnlyV2Available(ConanException):
 
     def __init__(self, remote_url):
@@ -124,6 +145,10 @@ class ConanOutdatedClient(ConanException):
 
 
 class ConanExceptionInUserConanfileMethod(ConanException):
+    pass
+
+
+class ConanInvalidSystemRequirements(ConanException):
     pass
 
 
@@ -185,7 +210,7 @@ class RecipeNotFoundException(NotFoundException):
         super(RecipeNotFoundException, self).__init__(remote=remote)
 
     def __str__(self):
-        tmp = self.ref.full_repr() if self.print_rev else str(self.ref)
+        tmp = self.ref.full_str() if self.print_rev else str(self.ref)
         return "Recipe not found: '{}'".format(tmp, self.remote_message())
 
 
@@ -201,7 +226,7 @@ class PackageNotFoundException(NotFoundException):
         super(PackageNotFoundException, self).__init__(remote=remote)
 
     def __str__(self):
-        tmp = self.pref.full_repr() if self.print_rev else str(self.pref)
+        tmp = self.pref.full_str() if self.print_rev else str(self.pref)
         return "Binary package not found: '{}'{}".format(tmp, self.remote_message())
 
 

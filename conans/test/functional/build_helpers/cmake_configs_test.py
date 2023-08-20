@@ -1,26 +1,27 @@
 import os
 import unittest
 
-from nose.plugins.attrib import attr
+import pytest
 
-from conans.test.utils.multi_config import multi_config_files
+from conans.test.assets.multi_config import multi_config_files
 from conans.test.utils.tools import TestClient
 
 
-@attr("slow")
+@pytest.mark.slow
+@pytest.mark.tool_cmake
 class CMakeConfigsTest(unittest.TestCase):
 
-    def test_package_configs_test(self):
+    def test_test_package_configs(self):
         client = TestClient()
         name = "Hello0"
         files = multi_config_files(name, test=True)
         client.save(files, clean_first=True)
 
         client.run("create . user/testing")
-        self.assertIn("Hello Release Hello0", client.user_io.out)
-        self.assertIn("Hello Debug Hello0", client.user_io.out)
+        self.assertIn("Hello Release Hello0", client.out)
+        self.assertIn("Hello Debug Hello0", client.out)
 
-    def cmake_multi_test(self):
+    def test_cmake_multi(self):
         client = TestClient()
 
         deps = None
@@ -34,9 +35,9 @@ class CMakeConfigsTest(unittest.TestCase):
         client.run('install . --build missing')
         client.run("build .")
         cmd = os.sep.join([".", "bin", "say_hello"])
-        client.runner(cmd, cwd=client.current_folder)
+        client.run_command(cmd)
         self.assertIn("Hello Release Hello2 Hello Release Hello1 Hello Release Hello0",
-                      " ".join(str(client.user_io.out).splitlines()))
-        client.runner(cmd + "_d", cwd=client.current_folder)
+                      " ".join(str(client.out).splitlines()))
+        client.run_command(cmd + "_d")
         self.assertIn("Hello Debug Hello2 Hello Debug Hello1 Hello Debug Hello0",
-                      " ".join(str(client.user_io.out).splitlines()))
+                      " ".join(str(client.out).splitlines()))

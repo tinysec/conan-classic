@@ -1,11 +1,9 @@
-import os
 import platform
 import unittest
 
-from nose.plugins.attrib import attr
+import pytest
 
 from conans.test.utils.tools import TestClient
-from conans.util.files import load
 
 conanfile_py = """
 from conans import ConanFile
@@ -48,9 +46,9 @@ int main(){
 """
 
 
-@attr("slow")
+@pytest.mark.slow
 class CMakeTargetsTest(unittest.TestCase):
-    def transitive_flags_test(self):
+    def test_transitive_flags(self):
         client = TestClient()
         conanfile = """from conans import ConanFile
 class Charlie(ConanFile):
@@ -73,11 +71,12 @@ class Alpha(ConanFile):
 """
         client.save({"conanfile.py": conanfile})
         client.run("install . -g cmake")
-        cmake = load(os.path.join(client.current_folder, "conanbuildinfo.cmake"))
+        cmake = client.load("conanbuildinfo.cmake")
         self.assertIn('set(CONAN_SHARED_LINKER_FLAGS '
                       '"CharlieFlag BetaFlag ${CONAN_SHARED_LINKER_FLAGS}")', cmake)
 
-    def header_only_test(self):
+    @pytest.mark.tool_cmake
+    def test_header_only(self):
         client = TestClient()
         client.save({"conanfile.py": conanfile_py,
                      "hello.h": hello})
@@ -88,14 +87,14 @@ class Alpha(ConanFile):
 
         client.run('install . -g cmake')
         if platform.system() == "Windows":
-            client.runner('cmake . -G "Visual Studio 15 Win64"', cwd=client.current_folder)
+            client.run_command('cmake . -G "Visual Studio 15 Win64"')
         else:
-            client.runner('cmake .', cwd=client.current_folder)
-        self.assertNotIn("WARN: Unknown compiler '", client.user_io.out)
-        self.assertNotIn("', skipping the version check...", client.user_io.out)
-        self.assertIn("Configuring done", client.user_io.out)
-        self.assertIn("Generating done", client.user_io.out)
-        self.assertIn("Build files have been written", client.user_io.out)
+            client.run_command('cmake .')
+        self.assertNotIn("WARN: Unknown compiler '", client.out)
+        self.assertNotIn("', skipping the version check...", client.out)
+        self.assertIn("Configuring done", client.out)
+        self.assertIn("Generating done", client.out)
+        self.assertIn("Build files have been written", client.out)
         client.save({"conanfile.txt": conanfile,
                      "CMakeLists.txt": cmake.replace("conanbuildinfo.cmake",
                                                      "conanbuildinfo_multi.cmake"),
@@ -107,15 +106,15 @@ class Alpha(ConanFile):
 
             client.run('install . %s -s build_type=Debug -g cmake_multi' % debug_install)
             client.run('install . %s -s build_type=Release -g cmake_multi' % release_install)
-            client.runner('cmake . -G "Visual Studio 14 Win64"', cwd=client.current_folder)
-            self.assertNotIn("WARN: Unknown compiler '", client.user_io.out)
-            self.assertNotIn("', skipping the version check...", client.user_io.out)
-            self.assertIn("Configuring done", client.user_io.out)
-            self.assertIn("Generating done", client.user_io.out)
-            self.assertIn("Build files have been written", client.user_io.out)
+            client.run_command('cmake . -G "Visual Studio 14 Win64"')
+            self.assertNotIn("WARN: Unknown compiler '", client.out)
+            self.assertNotIn("', skipping the version check...", client.out)
+            self.assertIn("Configuring done", client.out)
+            self.assertIn("Generating done", client.out)
+            self.assertIn("Build files have been written", client.out)
 
-    @unittest.skipUnless(platform.system() == "Darwin", "Requires Macos")
-    def apple_framework_test(self):
+    @pytest.mark.skipif(platform.system() != "Darwin", reason="Requires Macos")
+    def test_apple_framework(self):
 
         client = TestClient()
         conanfile_fr = conanfile_py + '''
@@ -132,11 +131,11 @@ class Alpha(ConanFile):
                      "main.cpp": main}, clean_first=True)
 
         client.run("install . -g cmake")
-        bili = load(os.path.join(client.current_folder, "conanbuildinfo.cmake"))
+        bili = client.load("conanbuildinfo.cmake")
         self.assertIn("-framework Foundation", bili)
 
-    @unittest.skipUnless(platform.system() == "Darwin", "Requires Macos")
-    def custom_apple_framework_test(self):
+    @pytest.mark.skipif(platform.system() != "Darwin", reason="Requires Macos")
+    def test_custom_apple_framework(self):
         """Build a custom apple framework and reuse it"""
         client = TestClient()
         lib_c = r"""
@@ -162,15 +161,15 @@ class MyFrameworkConan(ConanFile):
     default_options = "shared=True"
     exports = "*"
     generators = "cmake"
-    
+
     def build(self):
         cmake = CMake(self)
         cmake.configure()
         cmake.build()
-    
+
     def package(self):
         self.copy(pattern="*", src="lib", keep_path=True)
-    
+
     def package_info(self):
         flag_f_location = '-F "%s"' % self.package_folder
         self.cpp_info.cflags.append(flag_f_location)
@@ -207,7 +206,7 @@ class HelloConan(ConanFile):
     requires = "MyFramework/1.0@user/testing"
     generators = "cmake"
     exports = "*"
-    
+
     def build(self):
         cmake = CMake(self)
         cmake.configure()
@@ -223,19 +222,19 @@ project(MyHello C)
 cmake_minimum_required(VERSION 2.8.12)
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup(KEEP_RPATHS)
-add_executable(say_hello main.c)    
+add_executable(say_hello main.c)
 """
 
         main = """
 #include "MyFramework/MyFramework.h"
 int main(){
     hello();
-}     
+}
 """
         files = {"main.c": main, "conanfile.py": reuse,
                  "CMakeLists.txt": cmake}
         client.save(files, clean_first=True)
         client.run("install . ")
         client.run("build . ")
-        client.runner("bin/say_hello", cwd=client.current_folder)
+        client.run_command("bin/say_hello")
         self.assertIn("HELLO FRAMEWORK!", client.out)

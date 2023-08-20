@@ -18,9 +18,18 @@ class VisualStudioGenerator(Generator):
   <ItemGroup />
 </Project>'''
 
-    properties_template = '''  <PropertyGroup Label="ConanVariables"{condition}>
-    <ConanBinaryDirectories>{bin_dirs};%(ConanBinaryDirectories)</ConanBinaryDirectories>
-    <ConanResourceDirectories>{res_dirs};%(ConanResourceDirectories)$(</ConanResourceDirectories>
+    properties_template = '''<PropertyGroup Label="ConanVariables"{condition}>
+    <ConanPackageName>{conan_package_name}</ConanPackageName>
+    <ConanPackageVersion>{conan_package_version}</ConanPackageVersion>
+    <ConanCompilerFlags>{compiler_flags}</ConanCompilerFlags>
+    <ConanLinkerFlags>{linker_flags}</ConanLinkerFlags>
+    <ConanPreprocessorDefinitions>{definitions}</ConanPreprocessorDefinitions>
+    <ConanIncludeDirectories>{include_dirs}</ConanIncludeDirectories>
+    <ConanResourceDirectories>{res_dirs}</ConanResourceDirectories>
+    <ConanLibraryDirectories>{lib_dirs}</ConanLibraryDirectories>
+    <ConanBinaryDirectories>{bin_dirs}</ConanBinaryDirectories>
+    <ConanLibraries>{libs}</ConanLibraries>
+    <ConanSystemDeps>{system_libs}</ConanSystemDeps>
   </PropertyGroup>
   <PropertyGroup{condition}>
     <LocalDebuggerEnvironment>PATH=%PATH%;{bin_dirs}</LocalDebuggerEnvironment>
@@ -28,22 +37,23 @@ class VisualStudioGenerator(Generator):
   </PropertyGroup>
   <ItemDefinitionGroup{condition}>
     <ClCompile>
-      <AdditionalIncludeDirectories>{include_dirs}%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>{definitions}%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalOptions>{compiler_flags} %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>$(ConanIncludeDirectories)%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>$(ConanPreprocessorDefinitions)%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>$(ConanCompilerFlags) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>{lib_dirs}%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>{libs}%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalOptions>{linker_flags} %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalLibraryDirectories>$(ConanLibraryDirectories)%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(ConanLibraries)%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ConanSystemDeps)%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>$(ConanLinkerFlags) %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <Midl>
-      <AdditionalIncludeDirectories>{include_dirs}%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ConanIncludeDirectories)%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </Midl>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>{include_dirs}%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>{definitions}%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalOptions>{compiler_flags} %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>$(ConanIncludeDirectories)%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>$(ConanPreprocessorDefinitions)%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>$(ConanCompilerFlags) %(AdditionalOptions)</AdditionalOptions>
     </ResourceCompile>
   </ItemDefinitionGroup>'''
 
@@ -71,6 +81,8 @@ class VisualStudioGenerator(Generator):
             return ext in VALID_LIB_EXTENSIONS
 
         fields = {
+            'conan_package_name': self.conanfile.name if self.conanfile.name else "",
+            'conan_package_version': self.conanfile.version if self.conanfile.version else "",
             'condition': condition,
             'bin_dirs': "".join("%s;" % p for p in build_info.bin_paths),
             'res_dirs': "".join("%s;" % p for p in build_info.res_paths),
@@ -78,6 +90,8 @@ class VisualStudioGenerator(Generator):
             'lib_dirs': "".join("%s;" % p for p in build_info.lib_paths),
             'libs': "".join(['%s.lib;' % lib if not has_valid_ext(lib)
                              else '%s;' % lib for lib in build_info.libs]),
+            'system_libs': "".join(['%s.lib;' % sys_dep if not has_valid_ext(sys_dep)
+                                    else '%s;' % sys_dep for sys_dep in build_info.system_libs]),
             'definitions': "".join("%s;" % d for d in build_info.defines),
             'compiler_flags': " ".join(build_info.cxxflags + build_info.cflags),
             'linker_flags': " ".join(build_info.sharedlinkflags),

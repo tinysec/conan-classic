@@ -5,13 +5,14 @@ import unittest
 
 from parameterized import parameterized
 
-from conans.client.conf import default_settings_yml
+from conans.client.conf import get_default_settings_yml
 from conans.model.info import ConanInfo
 from conans.model.settings import Settings
 
 
 class VSToolsetCompatibleTest(unittest.TestCase):
-    @parameterized.expand([("15", "v142", "16"),
+    @parameterized.expand([("16", "v143", "17"),
+                           ("15", "v142", "16"),
                            ("14", "v141", "15"),
                            ("15", "v140", "14"),
                            ("11", "v120", "12"),
@@ -20,7 +21,7 @@ class VSToolsetCompatibleTest(unittest.TestCase):
                            ("10", "v90", "9")])
     def test_compatible(self, initial_version, toolset, expected_version):
         info = ConanInfo()
-        settings = Settings.loads(default_settings_yml)
+        settings = Settings.loads(get_default_settings_yml())
         info.settings = settings
         settings.compiler = "Visual Studio"
         settings.compiler.toolset = toolset
@@ -39,7 +40,7 @@ class VSToolsetCompatibleTest(unittest.TestCase):
                            ("10", "LLVM-vs2013_xp")])
     def test_incompatible(self, initial_version, toolset):
         info = ConanInfo()
-        settings = Settings.loads(default_settings_yml)
+        settings = Settings.loads(get_default_settings_yml())
         info.settings = settings
         settings.compiler = "Visual Studio"
         settings.compiler.toolset = toolset

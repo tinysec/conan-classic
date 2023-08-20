@@ -1,6 +1,9 @@
+import fnmatch
 import json
 import os
+import stat
 from collections import OrderedDict, namedtuple
+from six.moves.urllib.parse import urlparse
 
 from conans.errors import ConanException, NoRemoteAvailable
 from conans.util.config_parser import get_bool_from_text_value
@@ -8,7 +11,9 @@ from conans.util.files import load, save
 from conans.model.ref import PackageReference, ConanFileReference
 
 
-Remote = namedtuple("Remote", "name url verify_ssl")
+CONAN_CENTER_REMOTE_NAME = "conancenter"
+
+Remote = namedtuple("Remote", "name url verify_ssl disabled")
 
 
 def load_registry_txt(contents):
@@ -59,21 +64,21 @@ def migrate_registry_file(cache, out):
     folder = cache.cache_folder
     reg_json_path = os.path.join(folder, "registry.json")
     reg_txt_path = os.path.join(folder, "registry.txt")
-    remotes_path = cache.registry_path
+    remotes_path = cache.remotes_path
 
-    def add_ref_remote(reference, remotes, remote_name):
-        ref = ConanFileReference.loads(reference, validate=True)
-        remote = remotes.get(remote_name)
+    def add_ref_remote(reference, remotes_, remote_name_):
+        ref_ = ConanFileReference.loads(reference, validate=True)
+        remote = remotes_.get(remote_name_)
         if remote:
-            with cache.package_layout(ref).update_metadata() as metadata:
+            with cache.package_layout(ref_).update_metadata() as metadata:
                 metadata.recipe.remote = remote.name
 
-    def add_pref_remote(pkg_ref, remotes, remote_name):
-        pref = PackageReference.loads(pkg_ref, validate=True)
-        remote = remotes.get(remote_name)
+    def add_pref_remote(pkg_ref, remotes_, remote_name_):
+        pref_ = PackageReference.loads(pkg_ref, validate=True)
+        remote = remotes_.get(remote_name_)
         if remote:
-            with cache.package_layout(pref.ref).update_metadata() as metadata:
-                metadata.packages[pref.id].remote = remote.name
+            with cache.package_layout(pref_.ref).update_metadata() as metadata:
+                metadata.packages[pref_.id].remote = remote.name
 
     try:
         if os.path.exists(reg_json_path):
@@ -105,7 +110,8 @@ class Remotes(object):
     @classmethod
     def defaults(cls):
         result = Remotes()
-        result._remotes["conan-center"] = Remote("conan-center", "https://conan.bintray.com", True)
+        result._remotes[CONAN_CENTER_REMOTE_NAME] = Remote(CONAN_CENTER_REMOTE_NAME,
+                                                           "https://center.conan.io", True, False)
         return result
 
     def select(self, remote_name):
@@ -121,29 +127,44 @@ class Remotes(object):
         self._remotes.clear()
 
     def items(self):
-        return self._remotes.items()
+        return OrderedDict(
+            (key, value) for (key, value) in self._remotes.items() if not value.disabled)
 
     def values(self):
+        return [value for value in self._remotes.values() if not value.disabled]
+
+    def all_values(self):
         return self._remotes.values()
+
+    def all_items(self):
+        return self._remotes.items()
 
     @staticmethod
     def loads(text):
         result = Remotes()
         data = json.loads(text)
         for r in data.get("remotes", []):
-            result._remotes[r["name"]] = Remote(r["name"], r["url"], r["verify_ssl"])
+            disabled = r.get("disabled", False)
+            result._remotes[r["name"]] = Remote(r["name"], r["url"],
+                                                r["verify_ssl"], disabled)
 
         return result
 
     def dumps(self):
         result = []
         for remote in self._remotes.values():
-            result.append("%s: %s [Verify SSL: %s]" % (remote.name, remote.url, remote.verify_ssl))
+            disabled_str = ", Disabled: True" if remote.disabled else ""
+            result.append("%s: %s [Verify SSL: %s%s]" %
+                          (remote.name, remote.url, remote.verify_ssl, disabled_str))
         return "\n".join(result)
 
     def save(self, filename):
-        ret = {"remotes": [{"name": r, "url": u, "verify_ssl": v}
-                           for r, (_, u, v) in self._remotes.items()]}
+        ret = {"remotes": []}
+        for r, (_, u, v, d) in self._remotes.items():
+            remote = {"name": r, "url": u, "verify_ssl": v}
+            if d:
+                remote["disabled"] = True
+            ret["remotes"].append(remote)
         save(filename, json.dumps(ret, indent=True))
 
     def _get_by_url(self, url):
@@ -153,12 +174,30 @@ class Remotes(object):
 
     def rename(self, remote_name, new_remote_name):
         if new_remote_name in self._remotes:
-            raise ConanException("Remote '%s' already exists" % new_remote_name)
+            raise ConanException("Remote '%s' already exists" %
+                                 new_remote_name)
 
         remote = self._remotes[remote_name]
-        new_remote = Remote(new_remote_name, remote.url, remote.verify_ssl)
-        self._remotes = OrderedDict([(new_remote_name, new_remote) if k == remote_name
-                                     else (k, v) for k, v in self._remotes.items()])
+        new_remote = Remote(new_remote_name, remote.url, remote.verify_ssl,
+                            remote.disabled)
+        self._remotes = OrderedDict([
+            (new_remote_name, new_remote) if k == remote_name else (k, v)
+            for k, v in self._remotes.items()
+        ])
+
+    def set_disabled_state(self, remote_name, state):
+        filtered_remotes = []
+        for remote in self._remotes.values():
+            if fnmatch.fnmatch(remote.name, remote_name):
+                filtered_remotes.append(remote)
+
+        if not filtered_remotes and "*" not in remote_name:
+            raise NoRemoteAvailable("Remote '%s' not found in remotes" % remote_name)
+
+        for remote in filtered_remotes:
+            if remote.disabled == state:
+                continue
+            self._remotes[remote.name] = Remote(remote.name, remote.url, remote.verify_ssl, state)
 
     def get_remote(self, remote_name):
         # Returns the remote defined by the name, or the default if is None
@@ -182,17 +221,17 @@ class Remotes(object):
         try:
             return self._remotes[remote_name]
         except KeyError:
-            raise NoRemoteAvailable("No remote '%s' defined in remotes" % (remote_name))
+            raise NoRemoteAvailable("No remote '%s' defined in remotes" % remote_name)
 
     def __delitem__(self, remote_name):
         try:
             del self._remotes[remote_name]
         except KeyError:
-            raise NoRemoteAvailable("No remote '%s' defined in remotes" % (remote_name))
+            raise NoRemoteAvailable("No remote '%s' defined in remotes" % remote_name)
 
     def _upsert(self, remote_name, url, verify_ssl, insert):
         # Remove duplicates
-        updated_remote = Remote(remote_name, url, verify_ssl)
+        updated_remote = Remote(remote_name, url, verify_ssl, False)
         self._remotes.pop(remote_name, None)
         remotes_list = []
         renamed = None
@@ -232,7 +271,8 @@ class Remotes(object):
         prev_remote = self._get_by_url(url)
         if prev_remote and verify_ssl == prev_remote.verify_ssl and insert is None:
             raise ConanException("Remote '%s' already exists with same URL" % prev_remote.name)
-        updated_remote = Remote(remote_name, url, verify_ssl)
+        disabled = True if prev_remote and prev_remote.disabled else False
+        updated_remote = Remote(remote_name, url, verify_ssl, disabled)
         if insert is not None:
             try:
                 insert_index = int(insert)
@@ -251,33 +291,56 @@ class RemoteRegistry(object):
     def __init__(self, cache, output):
         self._cache = cache
         self._output = output
-        self._filename = cache.registry_path
+        self._filename = cache.remotes_path
 
-    def load_remotes(self):
+    def _validate_url(self, url):
+        """ Check if URL contains protocol and address
+
+        :param url: URL to be validated
+        """
+        if url:
+            address = urlparse(url)
+            if not all([address.scheme, address.netloc]):
+                self._output.warn("The URL '%s' is invalid. It must contain scheme and hostname."
+                                  % url)
+        else:
+            self._output.warn("The URL is empty. It must contain scheme and hostname.")
+
+    def initialize_remotes(self):
         if not os.path.exists(self._filename):
             self._output.warn("Remotes registry file missing, "
                               "creating default one in %s" % self._filename)
             remotes = Remotes.defaults()
             remotes.save(self._filename)
-        else:
-            content = load(self._filename)
-            remotes = Remotes.loads(content)
-        return remotes
+
+    def reset_remotes(self):
+        if os.path.exists(self._filename):
+            os.chmod(self._filename, stat.S_IWRITE)
+            os.remove(self._filename)
+        self.initialize_remotes()
+
+    def load_remotes(self):
+        self.initialize_remotes()
+        content = load(self._filename)
+        return Remotes.loads(content)
 
     def add(self, remote_name, url, verify_ssl=True, insert=None, force=None):
+        self._validate_url(url)
         remotes = self.load_remotes()
         renamed = remotes.add(remote_name, url, verify_ssl, insert, force)
         remotes.save(self._filename)
         if renamed:
-            for ref in self._cache.all_refs():
-                with self._cache.package_layout(ref).update_metadata() as metadata:
-                    if metadata.recipe.remote == renamed:
-                        metadata.recipe.remote = remote_name
-                    for pkg_metadata in metadata.packages.values():
-                        if pkg_metadata.remote == renamed:
-                            pkg_metadata.remote = remote_name
+            with self._cache.editable_packages.disable_editables():
+                for ref in self._cache.all_refs():
+                    with self._cache.package_layout(ref).update_metadata() as metadata:
+                        if metadata.recipe.remote == renamed:
+                            metadata.recipe.remote = remote_name
+                        for pkg_metadata in metadata.packages.values():
+                            if pkg_metadata.remote == renamed:
+                                pkg_metadata.remote = remote_name
 
     def update(self, remote_name, url, verify_ssl=True, insert=None):
+        self._validate_url(url)
         remotes = self.load_remotes()
         remotes.update(remote_name, url, verify_ssl, insert)
         remotes.save(self._filename)
@@ -285,51 +348,58 @@ class RemoteRegistry(object):
     def clear(self):
         remotes = self.load_remotes()
         remotes.clear()
-        for ref in self._cache.all_refs():
-            with self._cache.package_layout(ref).update_metadata() as metadata:
-                metadata.recipe.remote = None
-                for pkg_metadata in metadata.packages.values():
-                    pkg_metadata.remote = None
-        remotes.save(self._filename)
+        with self._cache.editable_packages.disable_editables():
+            for ref in self._cache.all_refs():
+                with self._cache.package_layout(ref).update_metadata() as metadata:
+                    metadata.recipe.remote = None
+                    for pkg_metadata in metadata.packages.values():
+                        pkg_metadata.remote = None
+            remotes.save(self._filename)
 
     def remove(self, remote_name):
         remotes = self.load_remotes()
         del remotes[remote_name]
+        with self._cache.editable_packages.disable_editables():
+            for ref in self._cache.all_refs():
+                with self._cache.package_layout(ref).update_metadata() as metadata:
+                    if metadata.recipe.remote == remote_name:
+                        metadata.recipe.remote = None
+                    for pkg_metadata in metadata.packages.values():
+                        if pkg_metadata.remote == remote_name:
+                            pkg_metadata.remote = None
 
-        for ref in self._cache.all_refs():
-            with self._cache.package_layout(ref).update_metadata() as metadata:
-                if metadata.recipe.remote == remote_name:
-                    metadata.recipe.remote = None
-                for pkg_metadata in metadata.packages.values():
-                    if pkg_metadata.remote == remote_name:
-                        pkg_metadata.remote = None
-
-        remotes.save(self._filename)
+            remotes.save(self._filename)
 
     def define(self, remotes):
         # For definition from conan config install
-        for ref in self._cache.all_refs():
-            with self._cache.package_layout(ref).update_metadata() as metadata:
-                if metadata.recipe.remote not in remotes:
-                    metadata.recipe.remote = None
-                for pkg_metadata in metadata.packages.values():
-                    if pkg_metadata.remote not in remotes:
-                        pkg_metadata.remote = None
+        with self._cache.editable_packages.disable_editables():
+            for ref in self._cache.all_refs():
+                with self._cache.package_layout(ref).update_metadata() as metadata:
+                    if metadata.recipe.remote not in remotes:
+                        metadata.recipe.remote = None
+                    for pkg_metadata in metadata.packages.values():
+                        if pkg_metadata.remote not in remotes:
+                            pkg_metadata.remote = None
 
-        remotes.save(self._filename)
+            remotes.save(self._filename)
 
     def rename(self, remote_name, new_remote_name):
         remotes = self.load_remotes()
         remotes.rename(remote_name, new_remote_name)
+        with self._cache.editable_packages.disable_editables():
+            for ref in self._cache.all_refs():
+                with self._cache.package_layout(ref).update_metadata() as metadata:
+                    if metadata.recipe.remote == remote_name:
+                        metadata.recipe.remote = new_remote_name
+                    for pkg_metadata in metadata.packages.values():
+                        if pkg_metadata.remote == remote_name:
+                            pkg_metadata.remote = new_remote_name
 
-        for ref in self._cache.all_refs():
-            with self._cache.package_layout(ref).update_metadata() as metadata:
-                if metadata.recipe.remote == remote_name:
-                    metadata.recipe.remote = new_remote_name
-                for pkg_metadata in metadata.packages.values():
-                    if pkg_metadata.remote == remote_name:
-                        pkg_metadata.remote = new_remote_name
+            remotes.save(self._filename)
 
+    def set_disabled_state(self, remote_name, state):
+        remotes = self.load_remotes()
+        remotes.set_disabled_state(remote_name, state)
         remotes.save(self._filename)
 
     @property

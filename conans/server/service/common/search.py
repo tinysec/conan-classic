@@ -3,8 +3,7 @@ import re
 from fnmatch import translate
 
 from conans import load
-from conans.errors import NotFoundException, ConanException, ForbiddenException, \
-    RecipeNotFoundException
+from conans.errors import NotFoundException, ForbiddenException, RecipeNotFoundException
 from conans.model.info import ConanInfo
 from conans.model.ref import PackageReference, ConanFileReference
 from conans.paths import CONANINFO
@@ -34,10 +33,15 @@ def _get_local_infos_min(server_store, ref, look_in_all_rrevs):
                 info_path = os.path.join(server_store.package(pref), CONANINFO)
                 if not os.path.exists(info_path):
                     raise NotFoundException("")
-                conan_info_content = load(info_path)
-                info = ConanInfo.loads(conan_info_content)
+                content = load(info_path)
+                info = ConanInfo.loads(content)
+                # From Conan 1.48 the conaninfo.txt is sent raw.
+                result[package_id] = {"content": content}
+                # FIXME: This could be removed in the conan_server, Artifactory should keep it
+                #        to guarantee compatibility with old conan clients.
                 conan_vars_info = info.serialize_min()
-                result[package_id] = conan_vars_info
+                result[package_id].update(conan_vars_info)
+
             except Exception as exc:  # FIXME: Too wide
                 logger.error("Package %s has no ConanInfo file" % str(pref))
                 if str(exc):
@@ -57,13 +61,17 @@ def search_packages(server_store, ref, query, look_in_all_rrevs):
     param ref: ConanFileReference object
     """
     if not look_in_all_rrevs and ref.revision is None:
-        latest_rev = server_store.get_last_revision(ref).revision
+        found_ref = server_store.get_last_revision(ref)
+        if found_ref is None:
+            raise RecipeNotFoundException(ref)
+        latest_rev = found_ref.revision
         ref = ref.copy_with_rev(latest_rev)
 
     if not os.path.exists(server_store.conan_revisions_root(ref.copy_clear_rev())):
         raise RecipeNotFoundException(ref)
     infos = _get_local_infos_min(server_store, ref, look_in_all_rrevs)
-    return filter_packages(query, infos)
+    assert query is None, "The server is not filtering packages remotely anymore"
+    return infos
 
 
 class SearchService(object):
@@ -80,32 +88,19 @@ class SearchService(object):
         return info
 
     def _search_recipes(self, pattern=None, ignorecase=True):
-
-        def get_ref(_pattern):
-            if not isinstance(_pattern, ConanFileReference):
-                try:
-                    ref_ = ConanFileReference.loads(_pattern)
-                except (ConanException, TypeError):
-                    ref_ = None
-            else:
-                ref_ = _pattern
-            return ref_
-
-        # Conan references in main storage
-        if pattern:
-            pattern = str(pattern)
-            b_pattern = translate(pattern)
-            b_pattern = re.compile(b_pattern, re.IGNORECASE) \
-                if ignorecase else re.compile(b_pattern)
-
         subdirs = list_folder_subdirs(basedir=self._server_store.store, level=5)
         if not pattern:
-            return sorted([ConanFileReference(*folder.split("/")) for folder in subdirs])
+            return sorted([ConanFileReference(*folder.split("/")).copy_clear_rev()
+                           for folder in subdirs])
         else:
+            # Conan references in main storage
+            pattern = str(pattern)
+            b_pattern = translate(pattern)
+            b_pattern = re.compile(b_pattern, re.IGNORECASE) if ignorecase else re.compile(b_pattern)
             ret = set()
             for subdir in subdirs:
                 new_ref = ConanFileReference(*subdir.split("/"))
-                if _partial_match(b_pattern, new_ref.full_repr()):
+                if _partial_match(b_pattern, repr(new_ref)):
                     ret.add(new_ref.copy_clear_rev())
 
             return sorted(ret)

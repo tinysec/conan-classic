@@ -2,16 +2,16 @@ import os
 import platform
 import unittest
 
-from nose.plugins.attrib import attr
+import pytest
 
 from conans.client.generators.text import TXTGenerator
 from conans.paths import BUILD_INFO, BUILD_INFO_CMAKE, CONANFILE
-from conans.test.utils.cpp_test_files import cpp_hello_conan_files
+from conans.test.assets.cpp_test_files import cpp_hello_conan_files
 from conans.test.utils.tools import TestClient, TestServer
 from conans.util.files import load
 
 
-@attr("slow")
+@pytest.mark.slow
 class DiamondTest(unittest.TestCase):
 
     def setUp(self):
@@ -19,15 +19,15 @@ class DiamondTest(unittest.TestCase):
                                  users={"lasote": "mypass"})  # exported users and passwords
         self.servers = {"default": test_server}
 
-    def diamond_cmake_test(self):
+    def test_diamond_cmake(self):
         self.client = TestClient(servers=self.servers, users={"default": [("lasote", "mypass")]})
         self._run(use_cmake=True, language=1)
 
-    def diamond_cmake_targets_test(self):
+    def test_diamond_cmake_targets(self):
         self.client = TestClient(servers=self.servers, users={"default": [("lasote", "mypass")]})
         self._run(use_cmake=True, cmake_targets=True)
 
-    def diamond_default_test(self):
+    def test_diamond_default(self):
         self.client = TestClient(servers=self.servers, users={"default": [("lasote", "mypass")]},
                                  path_with_spaces=False)
         self._run(use_cmake=False)
@@ -47,7 +47,7 @@ class DiamondTest(unittest.TestCase):
         self.assertIn("set(CONAN_LIBS helloHello3 helloHello1 helloHello2 helloHello0",
                       cmakebuildinfo)
         self.assertIn("set(CONAN_DEPENDENCIES Hello3 Hello1 Hello2 Hello0)", cmakebuildinfo)
-        deps_cpp_info, _, _ = TXTGenerator.loads(content)
+        deps_cpp_info, _, _, _ = TXTGenerator.loads(content)
         self.assertEqual(len(deps_cpp_info.include_paths), 4)
         for dep in ("Hello3", "Hello2", "Hello1", "Hello0"):
             self.assertEqual(len(deps_cpp_info[dep].include_paths), 1)
@@ -84,7 +84,7 @@ class DiamondTest(unittest.TestCase):
         content = content.replace("def build(self):",
                                   "def build(self):\n"
                                   "        self.output.info('INCLUDE %s' "
-                                  "% self.deps_cpp_info['Hello0'].include_paths)")
+                                  "% list(self.deps_cpp_info['Hello0'].include_paths))")
         files3[CONANFILE] = content
         self.client.save(files3)
 
@@ -101,7 +101,7 @@ class DiamondTest(unittest.TestCase):
 
         def check_run_output(client):
             command = os.sep.join([".", "bin", "say_hello"])
-            client.runner(command, cwd=client.current_folder)
+            client.run_command(command)
             if language == 0:
                 self.assertEqual(['Hello Hello4', 'Hello Hello3', 'Hello Hello1', 'Hello Hello0',
                                   'Hello Hello2', 'Hello Hello0'],
@@ -115,7 +115,7 @@ class DiamondTest(unittest.TestCase):
 
         # Try to upload and reuse the binaries
         self.client.run("upload Hello* --all --confirm")
-        self.assertEqual(str(self.client.user_io.out).count("Uploading package"), 4)
+        self.assertEqual(str(self.client.out).count("Uploading package"), 4)
 
         # Reuse in another client
         client2 = TestClient(servers=self.servers, users={"default": [("lasote", "mypass")]},

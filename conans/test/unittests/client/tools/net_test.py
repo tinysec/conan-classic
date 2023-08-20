@@ -5,6 +5,7 @@ import shutil
 import tempfile
 import unittest
 
+import pytest
 import six
 
 from conans.client.tools import chdir
@@ -12,6 +13,8 @@ from conans.client.tools import net
 from conans.errors import ConanException
 
 
+@pytest.mark.skip(msg="This causes more troubles than benefits, external ftp download is testing "
+                      "very little conan code, mostly python")
 class ToolsNetTest(unittest.TestCase):
 
     def run(self, *args, **kwargs):
@@ -27,14 +30,9 @@ class ToolsNetTest(unittest.TestCase):
         net.ftp_download("test.rebex.net", filename, "demo", "password")
         self.assertTrue(os.path.exists(os.path.basename(filename)))
 
-    def test_ftp_anonymous(self):
-        filename = "1KB.zip"
-        net.ftp_download("speedtest.tele2.net", filename)
-        self.assertTrue(os.path.exists(os.path.basename(filename)))
-
     def test_ftp_invalid_path(self):
         with six.assertRaisesRegex(self, ConanException,
-                                     "550 The system cannot find the file specified."):
+                                   "550 The system cannot find the file specified."):
             net.ftp_download("test.rebex.net", "invalid-file", "demo", "password")
         self.assertFalse(os.path.exists("invalid-file"))
 

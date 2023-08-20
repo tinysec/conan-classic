@@ -1,16 +1,14 @@
-import os
 import textwrap
 import unittest
 
-from nose.plugins.attrib import attr
+import pytest
 
-from conans import load
-from conans.client.tools import chdir, which
+from conans.client.tools import which
 from conans.test.utils.tools import TestClient
 
 
-@attr("premake")
-@unittest.skipIf(which("premake5") is None, "Needs premake5")
+@pytest.mark.tool_premake
+@pytest.mark.skipif(which("premake5") is None, reason="Needs premake5")
 class PremakeGeneratorTest(unittest.TestCase):
 
     def setUp(self):
@@ -43,18 +41,16 @@ class PremakeGeneratorTest(unittest.TestCase):
 
     def test_generate_basic_setup_release(self):
         self.client.run("install . -s build_type=Release -s arch=x86_64 --build missing")
-        with chdir(self.client.current_folder):
-            self.client.runner("premake5 vs2017")
-        sln_content = load(os.path.join(self.client.current_folder, "example.sln"))
+        self.client.run_command("premake5 vs2017")
+        sln_content = self.client.load("example.sln")
         self.assertIn("Release|x64", sln_content)
         self.assertNotIn("Debug|Win32", sln_content)
         self.assertNotIn("Debug|x64", sln_content)
 
     def test_generate_basic_setup_debug_32bit(self):
         self.client.run("install . -s build_type=Debug -s arch=x86 --build missing")
-        with chdir(self.client.current_folder):
-            self.client.runner("premake5 vs2017")
-        sln_content = load(os.path.join(self.client.current_folder, "example.sln"))
+        self.client.run_command("premake5 vs2017")
+        sln_content = self.client.load("example.sln")
         self.assertIn("Debug|Win32", sln_content)
         self.assertNotIn("Release|Win32", sln_content)
         self.assertNotIn("Release|x64", sln_content)

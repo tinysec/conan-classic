@@ -3,10 +3,11 @@ import platform
 import textwrap
 import unittest
 
-from nose.plugins.attrib import attr
+import pytest
 
-from conans.client.tools import chdir, load, remove_from_path
-from conans.test.utils.multi_config import multi_config_files
+
+from conans.client.tools import remove_from_path, no_op
+from conans.test.assets.multi_config import multi_config_files
 from conans.test.utils.tools import TestClient
 
 conanfile_py = """
@@ -131,13 +132,12 @@ int main(){{
 """
 
 
-@attr("slow")
+@pytest.mark.slow
+@pytest.mark.tool_cmake
 class CMakeMultiTest(unittest.TestCase):
 
-    @attr("mingw")
-    def cmake_multi_find_test(self):
-        if platform.system() not in ["Windows", "Linux"]:
-            return
+    @pytest.mark.tool_mingw64
+    def test_cmake_multi_find(self):
         client = TestClient()
         conanfile = """from conans import ConanFile, CMake
 class HelloConan(ConanFile):
@@ -178,31 +178,26 @@ class HelloConan(ConanFile):
         client.run("install . -s build_type=RelWithDebInfo --build=missing ")
         client.run("install . -s build_type=MinSizeRel --build=missing ")
 
-        with remove_from_path("sh"):
+        # in Linux it can remove /usr/bin from the path invalidating "cmake" and everything
+        with remove_from_path("sh") if platform.system() == "Windows" else no_op():
             generator = "MinGW Makefiles" if platform.system() == "Windows" else "Unix Makefiles"
-            client.runner('cmake . -G "%s" -DCMAKE_BUILD_TYPE=Debug' % generator,
-                          cwd=client.current_folder)
-            self.assertIn("FIND HELLO DEBUG!", client.user_io.out)
-            self.assertNotIn("FIND HELLO RELEASE!", client.user_io.out)
+            client.run_command('cmake . -G "%s" -DCMAKE_BUILD_TYPE=Debug' % generator)
+            self.assertIn("FIND HELLO DEBUG!", client.out)
+            self.assertNotIn("FIND HELLO RELEASE!", client.out)
 
-            client.init_dynamic_vars()  # to reset output
-            client.runner('cmake . -G "%s" -DCMAKE_BUILD_TYPE=Release' % generator,
-                          cwd=client.current_folder)
-            self.assertIn("FIND HELLO RELEASE!", client.user_io.out)
-            self.assertNotIn("FIND HELLO DEBUG!", client.user_io.out)
+            client.run_command('cmake . -G "%s" -DCMAKE_BUILD_TYPE=Release' % generator)
+            self.assertIn("FIND HELLO RELEASE!", client.out)
+            self.assertNotIn("FIND HELLO DEBUG!", client.out)
 
-            client.init_dynamic_vars()  # to reset output
-            client.runner('cmake . -G "%s" -DCMAKE_BUILD_TYPE=RelWithDebInfo' % generator,
-                          cwd=client.current_folder)
-            self.assertIn("FIND HELLO RELWITHDEBINFO!", client.user_io.out)
+            client.run_command('cmake . -G "%s" -DCMAKE_BUILD_TYPE=RelWithDebInfo' % generator)
+            self.assertIn("FIND HELLO RELWITHDEBINFO!", client.out)
 
-            client.init_dynamic_vars()  # to reset output
-            client.runner('cmake . -G "%s" -DCMAKE_BUILD_TYPE=MinSizeRel' % generator,
-                          cwd=client.current_folder)
-            self.assertIn("FIND HELLO MINSIZEREL!", client.user_io.out)
+            client.run_command('cmake . -G "%s" -DCMAKE_BUILD_TYPE=MinSizeRel' % generator)
+            self.assertIn("FIND HELLO MINSIZEREL!", client.out)
 
-    @unittest.skipUnless(platform.system() in ["Windows", "Darwin"], "Exclude Linux")
-    def cmake_multi_test(self):
+    @pytest.mark.skipif(platform.system() not in ["Windows", "Darwin"], reason="Exclude Linux")
+    @pytest.mark.tool_cmake(version="3.19")
+    def test_cmake_multi(self):
         client = TestClient()
 
         client.save(multi_config_files("Hello0", test=False), clean_first=True)
@@ -230,61 +225,117 @@ class HelloConan(ConanFile):
             client.run('install . -s build_type=RelWithDebInfo %s --build=missing' % release_install)
             client.run('install . -s build_type=MinSizeRel %s --build=missing' % release_install)
 
-            client.runner('cmake . -G "%s"' % generator, cwd=client.current_folder)
-            self.assertNotIn("WARN: Unknown compiler '", client.user_io.out)
-            self.assertNotIn("', skipping the version check...", client.user_io.out)
+            client.run_command('cmake . -G "%s"' % generator)
+            self.assertNotIn("WARN: Unknown compiler '", client.out)
+            self.assertNotIn("', skipping the version check...", client.out)
+            if cmake_file == cmake_targets:
+                self.assertIn("Conan: Using cmake targets configuration", client.out)
+            else:
+                self.assertIn("Conan: Using cmake global configuration", client.out)
 
             # Debug
-            client.runner('cmake --build . --config Debug', cwd=client.current_folder)
+            client.run_command('cmake --build . --config Debug')
             hello_comand = os.sep.join([".", "Debug", "say_hello"])
-            client.runner(hello_comand, cwd=client.current_folder)
+            client.run_command(hello_comand)
 
-            self.assertIn("Hello0:Debug Hello1:Debug", client.user_io.out)
-            self.assertIn("Hello0Def:Debug Hello1Def:Debug", client.user_io.out)
-            self.assertIn("Hello Debug Hello1", client.user_io.out)
-            self.assertIn("Hello Debug Hello0", client.user_io.out)
+            self.assertIn("Hello0:Debug Hello1:Debug", client.out)
+            self.assertIn("Hello0Def:Debug Hello1Def:Debug", client.out)
+            self.assertIn("Hello Debug Hello1", client.out)
+            self.assertIn("Hello Debug Hello0", client.out)
 
             # Release
-            client.runner('cmake --build . --config Release', cwd=client.current_folder)
+            client.run_command('cmake --build . --config Release')
             hello_comand = os.sep.join([".", "Release", "say_hello"])
-            client.runner(hello_comand, cwd=client.current_folder)
+            client.run_command(hello_comand)
 
-            self.assertIn("Hello0:Release Hello1:Release", client.user_io.out)
-            self.assertIn("Hello0Def:Release Hello1Def:Release", client.user_io.out)
-            self.assertIn("Hello Release Hello1", client.user_io.out)
-            self.assertIn("Hello Release Hello0", client.user_io.out)
-            if cmake_file == cmake_targets:
-                self.assertIn("Conan: Using cmake targets configuration", client.user_io.out)
-            else:
-                self.assertIn("Conan: Using cmake global configuration", client.user_io.out)
+            self.assertIn("Hello0:Release Hello1:Release", client.out)
+            self.assertIn("Hello0Def:Release Hello1Def:Release", client.out)
+            self.assertIn("Hello Release Hello1", client.out)
+            self.assertIn("Hello Release Hello0", client.out)
 
             # RelWithDebInfo
-            client.runner('cmake --build . --config RelWithDebInfo', cwd=client.current_folder)
+            client.run_command('cmake --build . --config RelWithDebInfo')
             hello_comand = os.sep.join([".", "RelWithDebInfo", "say_hello"])
-            client.runner(hello_comand, cwd=client.current_folder)
+            client.run_command(hello_comand)
 
-            self.assertIn("Hello0:RelWithDebInfo Hello1:RelWithDebInfo", client.user_io.out)
-            self.assertIn("Hello0Def:RelWithDebInfo Hello1Def:RelWithDebInfo", client.user_io.out)
-            self.assertIn("Hello Release Hello1", client.user_io.out)
-            self.assertIn("Hello Release Hello0", client.user_io.out)
+            self.assertIn("Hello0:RelWithDebInfo Hello1:RelWithDebInfo", client.out)
+            self.assertIn("Hello0Def:RelWithDebInfo Hello1Def:RelWithDebInfo", client.out)
+            self.assertIn("Hello Release Hello1", client.out)
+            self.assertIn("Hello Release Hello0", client.out)
 
             # MinSizeRel
-            client.runner('cmake --build . --config MinSizeRel', cwd=client.current_folder)
+            client.run_command('cmake --build . --config MinSizeRel')
             hello_comand = os.sep.join([".", "MinSizeRel", "say_hello"])
-            client.runner(hello_comand, cwd=client.current_folder)
+            client.run_command(hello_comand)
 
-            self.assertIn("Hello0:MinSizeRel Hello1:MinSizeRel", client.user_io.out)
-            self.assertIn("Hello0Def:MinSizeRel Hello1Def:MinSizeRel", client.user_io.out)
-            self.assertIn("Hello Release Hello1", client.user_io.out)
-            self.assertIn("Hello Release Hello0", client.user_io.out)
+            self.assertIn("Hello0:MinSizeRel Hello1:MinSizeRel", client.out)
+            self.assertIn("Hello0Def:MinSizeRel Hello1Def:MinSizeRel", client.out)
+            self.assertIn("Hello Release Hello1", client.out)
+            self.assertIn("Hello Release Hello0", client.out)
 
 
+@pytest.mark.tool_cmake
+class CMakeMultiSystemLibsTest(unittest.TestCase):
+
+    def test_system_libs(self):
+        mylib = textwrap.dedent("""
+            import os
+            from conans import ConanFile
+
+            class MyLib(ConanFile):
+
+                def package_info(self):
+                    self.cpp_info.debug.system_libs = ["sys1d"]
+                    self.cpp_info.release.system_libs = ["sys1"]
+                    self.cpp_info.libs = ["lib1"]
+                    self.cpp_info.debug.libs = ["lib1debug"]
+                    self.cpp_info.release.libs = ["lib1release"]
+                """)
+        consumer = textwrap.dedent("""
+            import os
+            from conans import ConanFile
+
+            class Consumer(ConanFile):
+                settings = "build_type"
+                requires = "mylib/1.0@us/ch"
+                generators = "cmake_multi"
+                """)
+        client = TestClient()
+        client.save({"conanfile_mylib.py": mylib, "conanfile_consumer.py": consumer})
+        client.run("create conanfile_mylib.py mylib/1.0@us/ch")
+        client.run("install conanfile_consumer.py -s build_type=Release")
+        content = client.load("conanbuildinfo_release.cmake")
+        self.assertIn("set(CONAN_LIBS_RELEASE ${CONAN_LIBS_RELEASE} ${CONAN_SYSTEM_LIBS_RELEASE}"
+                      " ${CONAN_FRAMEWORKS_FOUND_RELEASE})", content)
+        self.assertIn("set(CONAN_PKG_LIBS_RELEASE lib1 lib1release ${CONAN_PKG_LIBS_RELEASE})",
+                      content)
+        self.assertIn("set(CONAN_LIBS_MYLIB_RELEASE ${CONAN_PKG_LIBS_MYLIB_RELEASE} "
+                      "${CONAN_SYSTEM_LIBS_MYLIB_RELEASE} ${CONAN_FRAMEWORKS_FOUND_MYLIB_RELEASE})",
+                      content)
+        self.assertIn("set(CONAN_PKG_LIBS_MYLIB_RELEASE lib1 lib1release)", content)
+        self.assertIn("set(CONAN_SYSTEM_LIBS_RELEASE sys1 ${CONAN_SYSTEM_LIBS_RELEASE})", content)
+        self.assertIn("set(CONAN_SYSTEM_LIBS_MYLIB_RELEASE sys1)", content)
+
+        client.run("install conanfile_consumer.py -s build_type=Debug")
+        content = client.load("conanbuildinfo_debug.cmake")
+        self.assertIn("set(CONAN_LIBS_DEBUG ${CONAN_LIBS_DEBUG} ${CONAN_SYSTEM_LIBS_DEBUG} "
+                      "${CONAN_FRAMEWORKS_FOUND_DEBUG})", content)
+        self.assertIn("set(CONAN_LIBS_MYLIB_DEBUG ${CONAN_PKG_LIBS_MYLIB_DEBUG} "
+                      "${CONAN_SYSTEM_LIBS_MYLIB_DEBUG} ${CONAN_FRAMEWORKS_FOUND_MYLIB_DEBUG})",
+                      content)
+        self.assertIn("set(CONAN_PKG_LIBS_DEBUG lib1 lib1debug ${CONAN_PKG_LIBS_DEBUG})", content)
+        self.assertIn("set(CONAN_PKG_LIBS_MYLIB_DEBUG lib1 lib1debug)", content)
+        self.assertIn("set(CONAN_SYSTEM_LIBS_DEBUG sys1d ${CONAN_SYSTEM_LIBS_DEBUG})", content)
+        self.assertIn("set(CONAN_SYSTEM_LIBS_MYLIB_DEBUG sys1d)", content)
+
+
+@pytest.mark.tool_cmake
 class CMakeMultiSyntaxTest(unittest.TestCase):
 
     def setUp(self):
         self.client = TestClient()
         cmakelists = textwrap.dedent("""
-            cmake_minimum_required(VERSION 3.12)
+            cmake_minimum_required(VERSION 2.18)
             include(${CMAKE_BINARY_DIR}/conanbuildinfo_multi.cmake)
             conan_basic_setup(NO_OUTPUT_DIRS)
             """)
@@ -293,23 +344,21 @@ class CMakeMultiSyntaxTest(unittest.TestCase):
         self.client.run("install .")
         self.client.run("install . -s build_type=Debug")
 
-    def conan_basic_setup_interface_test(self):
+    def test_conan_basic_setup_interface(self):
         """
         Check conan_basic_setup() interface is the same one for cmake and cmake_multi generators
         """
-        conanbuildinfo = load(os.path.join(self.client.current_folder, "conanbuildinfo.cmake"))
-        conanbuildinfo_multi = load(os.path.join(self.client.current_folder,
-                                                 "conanbuildinfo_multi.cmake"))
+        conanbuildinfo = self.client.load("conanbuildinfo.cmake")
+        conanbuildinfo_multi = self.client.load("conanbuildinfo_multi.cmake")
         expected = "set(options TARGETS NO_OUTPUT_DIRS SKIP_RPATH KEEP_RPATHS SKIP_STD SKIP_FPIC)"
         self.assertIn(expected, conanbuildinfo)
         self.assertIn(expected, conanbuildinfo_multi)
 
-    def conan_basic_setup_output_dirs_warning_test(self):
+    def test_conan_basic_setup_output_dirs_warning(self):
         """
         Check warning when suing NO_OUTPUT_DIRS
         """
-        with chdir(self.client.current_folder):
-            self.client.runner("cmake .")
-        self.assertTrue("CMake Warning at conanbuildinfo_multi.cmake", self.client.out)
-        self.assertTrue("Conan: NO_OUTPUT_DIRS has no effect with cmake_multi generator",
-                        self.client.out)
+        self.client.run_command("cmake .")
+        self.assertIn("CMake Warning at conanbuildinfo_multi.cmake", self.client.out)
+        self.assertIn("Conan: NO_OUTPUT_DIRS has no effect with cmake_multi generator",
+                      self.client.out)

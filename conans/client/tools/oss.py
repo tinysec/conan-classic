@@ -1,16 +1,17 @@
+import math
 import multiprocessing
 import os
 import platform
 import subprocess
 import sys
-import tempfile
-from subprocess import CalledProcessError, PIPE
-import six
+import warnings
+from collections import namedtuple
+
 from conans.client.tools.env import environment_append
 from conans.client.tools.files import load, which
-from conans.errors import ConanException
+from conans.errors import CalledProcessErrorWithStderr, ConanException
 from conans.model.version import Version
-from conans.util.fallbacks import default_output
+from conans.util.runners import check_output_runner
 
 
 def args_to_string(args):
@@ -22,14 +23,35 @@ def args_to_string(args):
         return " ".join("'" + arg.replace("'", r"'\''") + "'" for arg in args)
 
 
+class CpuProperties(object):
+
+    def get_cpu_quota(self):
+        return int(load("/sys/fs/cgroup/cpu/cpu.cfs_quota_us"))
+
+    def get_cpu_period(self):
+        return int(load("/sys/fs/cgroup/cpu/cpu.cfs_period_us"))
+
+    def get_cpus(self):
+        try:
+            cfs_quota_us = self.get_cpu_quota()
+            cfs_period_us = self.get_cpu_period()
+            if cfs_quota_us > 0 and cfs_period_us > 0:
+                return int(math.ceil(cfs_quota_us / cfs_period_us))
+        except:
+            pass
+        return multiprocessing.cpu_count()
+
+
 def cpu_count(output=None):
-    output = default_output(output, 'conans.client.tools.oss.cpu_count')
     try:
         env_cpu_count = os.getenv("CONAN_CPU_COUNT", None)
         if env_cpu_count is not None and not env_cpu_count.isdigit():
             raise ConanException("Invalid CONAN_CPU_COUNT value '%s', "
                                  "please specify a positive integer" % env_cpu_count)
-        return int(env_cpu_count) if env_cpu_count else multiprocessing.cpu_count()
+        if env_cpu_count:
+            return int(env_cpu_count)
+        else:
+            return CpuProperties().get_cpus()
     except NotImplementedError:
         output.warn("multiprocessing.cpu_count() not implemented. Defaulting to 1 cpu")
     return 1  # Safe guess
@@ -46,6 +68,17 @@ def detected_os():
 def detected_architecture():
     # FIXME: Very weak check but not very common to run conan in other architectures
     machine = platform.machine()
+    os_info = OSInfo()
+    arch = None
+
+    if os_info.is_solaris:
+        arch = OSInfo.get_solaris_architecture()
+    elif os_info.is_aix:
+        arch = OSInfo.get_aix_architecture()
+
+    if arch:
+        return arch
+
     if "ppc64le" in machine:
         return "ppc64le"
     elif "ppc64" in machine:
@@ -62,6 +95,8 @@ def detected_architecture():
         return "sparc"
     elif "aarch64" in machine:
         return "armv8"
+    elif "arm64" in machine:
+        return "armv8"
     elif "64" in machine:
         return "x86_64"
     elif "86" in machine:
@@ -76,15 +111,10 @@ def detected_architecture():
         return "s390x"
     elif "s390" in machine:
         return "s390"
-
-    if OSInfo().is_aix:
-        processor = platform.processor()
-        if "powerpc" in processor:
-            kernel_bitness = OSInfo().get_aix_conf("KERNEL_BITMODE")
-            if kernel_bitness:
-                return "ppc64" if kernel_bitness == "64" else "ppc32"
-        elif "rs6000" in processor:
-            return "ppc32"
+    elif "sun4v" in machine:
+        return "sparc"
+    elif "e2k" in machine:
+        return OSInfo.get_e2k_architecture()
 
     return None
 
@@ -154,21 +184,42 @@ class OSInfo(object):
 
     @property
     def with_apt(self):
-        return self.is_linux and self.linux_distro in \
-                                 ("debian", "ubuntu", "knoppix", "linuxmint", "raspbian", "neon")
+        if not self.is_linux:
+            return False
+
+        # https://github.com/conan-io/conan/issues/8737 zypper-aptitude can fake it
+        if "opensuse" in self.linux_distro or "sles" in self.linux_distro:
+            return False
+
+        apt_location = which('apt-get')
+        if apt_location:
+            # Check if we actually have the official apt package.
+            try:
+                output = check_output_runner([apt_location, 'moo'])
+            except CalledProcessErrorWithStderr:
+                return False
+            else:
+                # Yes, we have mooed today. :-) MOOOOOOOO.
+                return True
+        else:
+            return False
 
     @property
     def with_yum(self):
-        return self.is_linux and self.linux_distro in \
-                                 ("centos", "redhat", "fedora", "pidora", "scientific",
-                                  "xenserver", "amazon", "oracle", "rhel")
+        return self.is_linux and self.linux_distro in ("pidora", "fedora", "scientific", "centos",
+                                                       "redhat", "rhel", "xenserver", "amazon",
+                                                       "oracle", "amzn", "almalinux", "rocky")
+
+    @property
+    def with_dnf(self):
+        return self.is_linux and self.linux_distro == "fedora" and which('dnf')
 
     @property
     def with_pacman(self):
         if self.is_linux:
             return self.linux_distro in ["arch", "manjaro"]
         elif self.is_windows and which('uname.exe'):
-            uname = check_output(['uname.exe', '-s'])
+            uname = check_output_runner(['uname.exe', '-s'])
             return uname.startswith('MSYS_NT') and which('pacman.exe')
         return False
 
@@ -281,6 +332,42 @@ class OSInfo(object):
             return "Cheetha"
 
     @staticmethod
+    def get_aix_architecture():
+        processor = platform.processor()
+        if "powerpc" in processor:
+            kernel_bitness = OSInfo().get_aix_conf("KERNEL_BITMODE")
+            if kernel_bitness:
+                return "ppc64" if kernel_bitness == "64" else "ppc32"
+        elif "rs6000" in processor:
+            return "ppc32"
+
+    @staticmethod
+    def get_solaris_architecture():
+        # under intel solaris, platform.machine()=='i86pc' so we need to handle
+        # it early to suport 64-bit
+        processor = platform.processor()
+        kernel_bitness, elf = platform.architecture()
+        if "sparc" in processor:
+            return "sparcv9" if kernel_bitness == "64bit" else "sparc"
+        elif "i386" in processor:
+            return "x86_64" if kernel_bitness == "64bit" else "x86"
+
+    @staticmethod
+    def get_e2k_architecture():
+        return {
+            "E1C+": "e2k-v4",  # Elbrus 1C+ and Elbrus 1CK
+            "E2C+": "e2k-v2",  # Elbrus 2CM
+            "E2C+DSP": "e2k-v2",  # Elbrus 2C+
+            "E2C3": "e2k-v6",  # Elbrus 2C3
+            "E2S": "e2k-v3",  # Elbrus 2S (aka Elbrus 4C)
+            "E8C": "e2k-v4",  # Elbrus 8C and Elbrus 8C1
+            "E8C2": "e2k-v5",  # Elbrus 8C2 (aka Elbrus 8CB)
+            "E12C": "e2k-v6",  # Elbrus 12C
+            "E16C": "e2k-v6",  # Elbrus 16C
+            "E32C": "e2k-v7",  # Elbrus 32C
+        }.get(platform.processor())
+
+    @staticmethod
     def get_freebsd_version():
         return platform.release().split("-")[0]
 
@@ -296,7 +383,7 @@ class OSInfo(object):
     @staticmethod
     def get_aix_version():
         try:
-            ret = check_output("oslevel").strip()
+            ret = check_output_runner("oslevel").strip()
             return Version(ret)
         except Exception:
             return Version("%s.%s" % (platform.version(), platform.release()))
@@ -320,7 +407,7 @@ class OSInfo(object):
         try:
             # the uname executable is many times located in the same folder as bash.exe
             with environment_append({"PATH": [os.path.dirname(custom_bash_path)]}):
-                ret = check_output(command).strip().lower()
+                ret = check_output_runner(command).strip().lower()
                 return ret
         except Exception:
             return None
@@ -332,7 +419,7 @@ class OSInfo(object):
             raise ConanException("Command only for AIX operating system")
 
         try:
-            ret = check_output("getconf%s" % options).strip()
+            ret = check_output_runner("getconf%s" % options).strip()
             return ret
         except Exception:
             return None
@@ -370,9 +457,37 @@ class OSInfo(object):
             return None
 
 
-def cross_building(settings, self_os=None, self_arch=None):
-    ret = get_cross_building_settings(settings, self_os, self_arch)
+def cross_building(conanfile=None, self_os=None, self_arch=None, skip_x64_x86=False, settings=None):
+    # Handle input arguments (backwards compatibility with 'settings' as first argument)
+    # TODO: This can be promoted to a decorator pattern for tools if we adopt 'conanfile' as the
+    #   first argument for all of them.
+    if conanfile and settings:
+        raise ConanException("Do not set both arguments, 'conanfile' and 'settings',"
+                             " to call cross_building function")
+
+    from conans.model.conan_file import ConanFile
+    if conanfile and not isinstance(conanfile, ConanFile):
+        return cross_building(settings=conanfile, self_os=self_os, self_arch=self_arch,
+                              skip_x64_x86=skip_x64_x86)
+
+    if settings:
+        warnings.warn("Argument 'settings' has been deprecated, use 'conanfile' instead")
+
+    if conanfile:
+        ret = get_cross_building_settings(conanfile, self_os, self_arch)
+    else:
+        # TODO: If Conan is using 'profile_build' here we don't have any information about it,
+        #   we are falling back to the old behavior (which is probably wrong here)
+        conanfile = namedtuple('_ConanFile', ['settings'])(settings)
+        ret = get_cross_building_settings(conanfile, self_os, self_arch)
+
     build_os, build_arch, host_os, host_arch = ret
+
+    if skip_x64_x86 and host_os is not None and (build_os == host_os) and \
+            host_arch is not None and ((build_arch == "x86_64") and (host_arch == "x86") or
+                                       (build_arch == "sparcv9") and (host_arch == "sparc") or
+                                       (build_arch == "ppc64") and (host_arch == "ppc32")):
+        return False
 
     if host_os is not None and (build_os != host_os):
         return True
@@ -382,13 +497,17 @@ def cross_building(settings, self_os=None, self_arch=None):
     return False
 
 
-def get_cross_building_settings(settings, self_os=None, self_arch=None):
-    build_os = self_os or settings.get_safe("os_build") or detected_os()
-    build_arch = self_arch or settings.get_safe("arch_build") or detected_architecture()
-    host_os = settings.get_safe("os")
-    host_arch = settings.get_safe("arch")
+def get_cross_building_settings(conanfile, self_os=None, self_arch=None):
+    os_build, arch_build = get_build_os_arch(conanfile)
+    if not hasattr(conanfile, 'settings_build'):
+        # Let it override from outside only if no 'profile_build' is used
+        os_build = self_os or os_build or detected_os()
+        arch_build = self_arch or arch_build or detected_architecture()
 
-    return build_os, build_arch, host_os, host_arch
+    os_host = conanfile.settings.get_safe("os")
+    arch_host = conanfile.settings.get_safe("arch")
+
+    return os_build, arch_build, os_host, arch_host
 
 
 def get_gnu_triplet(os_, arch, compiler=None):
@@ -445,6 +564,9 @@ def get_gnu_triplet(os_, arch, compiler=None):
             machine = "s390-ibm"
         elif "sh4" in arch:
             machine = "sh4"
+        elif "e2k" in arch:
+            # https://lists.gnu.org/archive/html/config-patches/2015-03/msg00000.html
+            machine = "e2k-unknown"
 
     if machine is None:
         raise ConanException("Unknown '%s' machine, Conan doesn't know how to "
@@ -464,9 +586,9 @@ def get_gnu_triplet(os_, arch, compiler=None):
                  "Darwin": "apple-darwin",
                  "Android": "linux-android",
                  "Macos": "apple-darwin",
-                 "iOS": "apple-darwin",
-                 "watchOS": "apple-darwin",
-                 "tvOS": "apple-darwin",
+                 "iOS": "apple-ios",
+                 "watchOS": "apple-watchos",
+                 "tvOS": "apple-tvos",
                  # NOTE: it technically must be "asmjs-unknown-emscripten" or
                  # "wasm32-unknown-emscripten", but it's not recognized by old config.sub versions
                  "Emscripten": "local-emscripten",
@@ -486,25 +608,20 @@ def get_gnu_triplet(os_, arch, compiler=None):
     return "%s-%s" % (machine, op_system)
 
 
-def check_output(cmd, folder=None, return_code=False, stderr=None):
-    tmp_file = tempfile.mktemp()
-    try:
-        stderr = stderr or PIPE
-        cmd = cmd if isinstance(cmd, six.string_types) else subprocess.list2cmdline(cmd)
-        process = subprocess.Popen("{} > {}".format(cmd, tmp_file), shell=True,
-                                   stderr=stderr, cwd=folder)
-        process.communicate()
+def get_build_os_arch(conanfile):
+    """ Returns the value for the 'os' and 'arch' settings for the build context """
+    if hasattr(conanfile, 'settings_build'):
+        return conanfile.settings_build.get_safe('os'), conanfile.settings_build.get_safe('arch')
+    else:
+        return conanfile.settings.get_safe('os_build'), conanfile.settings.get_safe('arch_build')
 
-        if return_code:
-            return process.returncode
 
-        if process.returncode:
-            raise CalledProcessError(process.returncode, cmd)
-
-        output = load(tmp_file)
-        return output
-    finally:
-        try:
-            os.unlink(tmp_file)
-        except Exception:
-            pass
+def get_target_os_arch(conanfile):
+    """ Returns the value for the 'os' and 'arch' settings for the target context """
+    if hasattr(conanfile, 'settings_target'):
+        settings_target = conanfile.settings_target
+        if settings_target is not None:
+            return settings_target.get_safe('os'), settings_target.get_safe('arch')
+        return None, None
+    else:
+        return conanfile.settings.get_safe('os_target'), conanfile.settings.get_safe('arch_target')

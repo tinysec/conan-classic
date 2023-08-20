@@ -1,8 +1,10 @@
 import os
 import platform
+import textwrap
 import unittest
 from textwrap import dedent
 
+import pytest
 import six
 import time
 
@@ -12,8 +14,8 @@ from conans.client import tools
 from conans.errors import ConanException
 from conans.model.workspace import Workspace
 from conans.test.utils.test_files import temp_folder
-from conans.test.utils.tools import TestClient
-from conans.util.files import load, save
+from conans.test.utils.tools import TestClient, GenConanfile
+from conans.util.files import save
 
 conanfile_build = """from conans import ConanFile, CMake
 class Pkg(ConanFile):
@@ -94,7 +96,7 @@ target_link_libraries(hello{name} {dep})
 
 class WorkspaceTest(unittest.TestCase):
 
-    def parse_test(self):
+    def test_parse(self):
         folder = temp_folder()
         path = os.path.join(folder, "conanws.yml")
         project = "root: Hellob/0.1@lasote/stable"
@@ -154,7 +156,7 @@ class WorkspaceTest(unittest.TestCase):
                                    "does not define path"):
             Workspace(path, None)
 
-    def simple_test(self):
+    def test_simple(self):
         client = TestClient()
 
         def files(name, depend=None):
@@ -190,8 +192,9 @@ class WorkspaceTest(unittest.TestCase):
             for f in ("conanbuildinfo.cmake", "conaninfo.txt", "conanbuildinfo.txt"):
                 self.assertTrue(os.path.exists(os.path.join(client.current_folder, sub, f)))
 
-    @parameterized.expand([("csv",), ("list",), (("abbreviated_list"))])
-    def multiple_roots_test(self, root_attribute_format):
+    @parameterized.expand([("csv",), ("list",), ("abbreviated_list",)])
+    @pytest.mark.tool_cmake
+    def test_multiple_roots(self, root_attribute_format):
         # https://github.com/conan-io/conan/issues/4720
         client = TestClient()
 
@@ -237,12 +240,12 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("HelloC/0.1@lasote/stable from user folder - Editable", client.out)
         self.assertIn("HelloD/0.1@lasote/stable from user folder - Editable", client.out)
 
-        a_cmake = load(os.path.join(client.current_folder, "A", "conanbuildinfo.cmake"))
+        a_cmake = client.load(os.path.join("A", "conanbuildinfo.cmake"))
         self.assertIn("set(CONAN_LIBS helloC helloD ${CONAN_LIBS})", a_cmake)
-        b_cmake = load(os.path.join(client.current_folder, "B", "conanbuildinfo.cmake"))
+        b_cmake = client.load(os.path.join("B", "conanbuildinfo.cmake"))
         self.assertIn("set(CONAN_LIBS helloD ${CONAN_LIBS})", b_cmake)
 
-    def transitivity_test(self):
+    def test_transitivity(self):
         # https://github.com/conan-io/conan/issues/4720
         client = TestClient()
 
@@ -284,12 +287,13 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("HelloC/0.1@lasote/stable from user folder - Editable", client.out)
         self.assertIn("HelloD/0.1@lasote/stable from user folder - Editable", client.out)
 
-        a_cmake = load(os.path.join(client.current_folder, "A", "conanbuildinfo.cmake"))
+        a_cmake = client.load(os.path.join("A", "conanbuildinfo.cmake"))
         self.assertIn("set(CONAN_LIBS helloB helloC helloD ${CONAN_LIBS})", a_cmake)
-        b_cmake = load(os.path.join(client.current_folder, "B", "conanbuildinfo.cmake"))
+        b_cmake = client.load(os.path.join("B", "conanbuildinfo.cmake"))
         self.assertIn("set(CONAN_LIBS helloC helloD ${CONAN_LIBS})", b_cmake)
 
-    def missing_layout_cmake_test(self):
+    @pytest.mark.tool_cmake
+    def test_missing_layout_cmake(self):
         # Specifying cmake generator without layout file raised exception
         # https://github.com/conan-io/conan/issues/4752
         client = TestClient()
@@ -319,7 +323,8 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("HelloD/0.1@lasote/stable from user folder - Editable", client.out)
         self.assertIn("HelloD/0.1@lasote/stable from user folder - Editable", client.out)
 
-    def simple_build_test(self):
+    @pytest.mark.tool_cmake
+    def test_simple_build(self):
         client = TestClient()
 
         def files(name, depend=None):
@@ -376,7 +381,7 @@ class WorkspaceTest(unittest.TestCase):
         cmd_release = os.path.normpath("./A/build/Release/bin/app")
         cmd_debug = os.path.normpath("./A/build/Debug/bin/app")
 
-        client.runner(cmd_release, cwd=client.current_folder)
+        client.run_command(cmd_release)
         self.assertIn("Hello World C Release!", client.out)
         self.assertIn("Hello World B Release!", client.out)
         self.assertIn("Hello World A Release!", client.out)
@@ -386,12 +391,13 @@ class WorkspaceTest(unittest.TestCase):
         client.run("build B -bf=B/build/%s" % build_type)
         client.run("build A -bf=A/build/%s" % build_type)
 
-        client.runner(cmd_debug, cwd=client.current_folder)
+        client.run_command(cmd_debug)
         self.assertIn("Hello World C Debug!", client.out)
         self.assertIn("Hello World B Debug!", client.out)
         self.assertIn("Hello World A Debug!", client.out)
 
-    def simple_out_of_source_build_test(self):
+    @pytest.mark.tool_cmake
+    def test_simple_out_of_source_build(self):
         client = TestClient()
 
         def files(name, depend=None):
@@ -449,7 +455,7 @@ class WorkspaceTest(unittest.TestCase):
         cmd_release = os.path.normpath("./build/HelloA/Release/bin/app")
         cmd_debug = os.path.normpath("./build/HelloA/Debug/bin/app")
 
-        client.runner(cmd_release, cwd=client.current_folder)
+        client.run_command(cmd_release)
         self.assertIn("Hello World C Release!", client.out)
         self.assertIn("Hello World B Release!", client.out)
         self.assertIn("Hello World A Release!", client.out)
@@ -459,12 +465,13 @@ class WorkspaceTest(unittest.TestCase):
         client.run("build HelloB -bf=build/HelloB/%s" % build_type)
         client.run("build HelloA -bf=build/HelloA/%s" % build_type)
 
-        client.runner(cmd_debug, cwd=client.current_folder)
+        client.run_command(cmd_debug)
         self.assertIn("Hello World C Debug!", client.out)
         self.assertIn("Hello World B Debug!", client.out)
         self.assertIn("Hello World A Debug!", client.out)
 
-    def complete_single_conf_build_test(self):
+    @pytest.mark.tool_cmake
+    def test_complete_single_conf_build(self):
         client = TestClient()
 
         def files(name, depend=None):
@@ -526,16 +533,16 @@ class WorkspaceTest(unittest.TestCase):
             client.run("workspace install ../conanws.yml")
         with client.chdir("build_debug"):
             client.run("workspace install ../conanws.yml -s build_type=Debug")
-        client.init_dynamic_vars()
 
         generator = "Visual Studio 15 Win64" if platform.system() == "Windows" else "Unix Makefiles"
-        client.runner('cmake .. -G "%s" -DCMAKE_BUILD_TYPE=Release' % generator, cwd=base_release)
-        client.runner('cmake --build . --config Release', cwd=base_release)
+        with client.chdir(base_release):
+            client.run_command('cmake .. -G "%s" -DCMAKE_BUILD_TYPE=Release' % generator)
+            client.run_command('cmake --build . --config Release')
 
         cmd_release = os.path.normpath("./A/build/Release/bin/app")
         cmd_debug = os.path.normpath("./A/build/Debug/bin/app")
 
-        client.runner(cmd_release, cwd=client.current_folder)
+        client.run_command(cmd_release)
         self.assertIn("Hello World C Release!", client.out)
         self.assertIn("Hello World B Release!", client.out)
         self.assertIn("Hello World A Release!", client.out)
@@ -544,8 +551,8 @@ class WorkspaceTest(unittest.TestCase):
         tools.replace_in_file(os.path.join(client.current_folder, "C/src/hello.cpp"),
                               "Hello World", "Bye Moon", output=client.out)
         time.sleep(1)
-        client.runner('cmake --build . --config Release', cwd=base_release)
-        client.runner(cmd_release, cwd=client.current_folder)
+        client.run_command('cmake --build . --config Release', cwd=base_release)
+        client.run_command(cmd_release)
         self.assertIn("Bye Moon C Release!", client.out)
         self.assertIn("Hello World B Release!", client.out)
         self.assertIn("Hello World A Release!", client.out)
@@ -554,18 +561,17 @@ class WorkspaceTest(unittest.TestCase):
         tools.replace_in_file(os.path.join(client.current_folder, "B/src/hello.cpp"),
                               "Hello World", "Bye Moon", output=client.out)
         time.sleep(1)
-        client.runner('cmake --build . --config Release', cwd=base_release)
-        client.runner(cmd_release, cwd=client.current_folder)
+        client.run_command('cmake --build . --config Release', cwd=base_release)
+        client.run_command(cmd_release)
         self.assertIn("Bye Moon C Release!", client.out)
         self.assertIn("Bye Moon B Release!", client.out)
         self.assertIn("Hello World A Release!", client.out)
 
         self.assertNotIn("Debug", client.out)
-        client.init_dynamic_vars()
 
-        client.runner('cmake .. -G "%s" -DCMAKE_BUILD_TYPE=Debug' % generator, cwd=base_debug)
-        client.runner('cmake --build . --config Debug', cwd=base_debug)
-        client.runner(cmd_debug, cwd=client.current_folder)
+        client.run_command('cmake .. -G "%s" -DCMAKE_BUILD_TYPE=Debug' % generator, cwd=base_debug)
+        client.run_command('cmake --build . --config Debug', cwd=base_debug)
+        client.run_command(cmd_debug)
         self.assertIn("Bye Moon C Debug!", client.out)
         self.assertIn("Bye Moon B Debug!", client.out)
         self.assertIn("Hello World A Debug!", client.out)
@@ -575,16 +581,17 @@ class WorkspaceTest(unittest.TestCase):
                               "Bye Moon", "Hello World", output=client.out)
 
         time.sleep(1)
-        client.runner('cmake --build . --config Debug', cwd=base_debug)
-        client.runner(cmd_debug, cwd=client.current_folder)
+        client.run_command('cmake --build . --config Debug', cwd=base_debug)
+        client.run_command(cmd_debug)
         self.assertIn("Hello World C Debug!", client.out)
         self.assertIn("Bye Moon B Debug!", client.out)
         self.assertIn("Hello World A Debug!", client.out)
 
         self.assertNotIn("Release", client.out)
 
-    @unittest.skipUnless(platform.system() == "Windows", "only windows")
-    def complete_multi_conf_build_test(self):
+    @pytest.mark.skipif(platform.system() != "Windows", reason="only windows")
+    @pytest.mark.tool_cmake
+    def test_complete_multi_conf_build(self):
         client = TestClient()
 
         def files(name, depend=None):
@@ -643,15 +650,15 @@ class WorkspaceTest(unittest.TestCase):
             client.run("workspace install ../conanws.yml")
             client.run("workspace install ../conanws.yml -s build_type=Debug")
 
-        client.init_dynamic_vars()
         generator = "Visual Studio 15 Win64"
-        client.runner('cmake .. -G "%s" -DCMAKE_BUILD_TYPE=Release' % generator, cwd=build)
-        client.runner('cmake --build . --config Release', cwd=build)
+        with client.chdir(build):
+            client.run_command('cmake .. -G "%s" -DCMAKE_BUILD_TYPE=Release' % generator)
+            client.run_command('cmake --build . --config Release')
 
         cmd_release = os.path.normpath("./A/build/Release/app")
         cmd_debug = os.path.normpath("./A/build/Debug/app")
 
-        client.runner(cmd_release, cwd=client.current_folder)
+        client.run_command(cmd_release)
         self.assertIn("Hello World C Release!", client.out)
         self.assertIn("Hello World B Release!", client.out)
         self.assertIn("Hello World A Release!", client.out)
@@ -659,8 +666,9 @@ class WorkspaceTest(unittest.TestCase):
         tools.replace_in_file(os.path.join(client.current_folder, "C/src/hello.cpp"),
                               "Hello World", "Bye Moon", output=client.out)
 
-        client.runner('cmake --build . --config Release', cwd=build)
-        client.runner(cmd_release, cwd=client.current_folder)
+        with client.chdir(build):
+            client.run_command('cmake --build . --config Release')
+        client.run_command(cmd_release)
         self.assertIn("Bye Moon C Release!", client.out)
         self.assertIn("Hello World B Release!", client.out)
         self.assertIn("Hello World A Release!", client.out)
@@ -668,20 +676,20 @@ class WorkspaceTest(unittest.TestCase):
         tools.replace_in_file(os.path.join(client.current_folder, "B/src/hello.cpp"),
                               "Hello World", "Bye Moon", output=client.out)
 
-        client.runner('cmake --build . --config Release', cwd=build)
-        client.runner(cmd_release, cwd=client.current_folder)
+        with client.chdir(build):
+            client.run_command('cmake --build . --config Release')
+        client.run_command(cmd_release)
         self.assertIn("Bye Moon C Release!", client.out)
         self.assertIn("Bye Moon B Release!", client.out)
         self.assertIn("Hello World A Release!", client.out)
 
         self.assertNotIn("Debug", client.out)
 
-        client.runner('cmake .. -G "%s" -DCMAKE_BUILD_TYPE=Debug' % generator, cwd=build)
+        client.run_command('cmake .. -G "%s" -DCMAKE_BUILD_TYPE=Debug' % generator, cwd=build)
         # CMake configure will find the Release libraries, as we are in cmake-multi mode
         # Need to reset the output after that
-        client.init_dynamic_vars()  # Reset output
-        client.runner('cmake --build . --config Debug', cwd=build)
-        client.runner(cmd_debug, cwd=client.current_folder)
+        client.run_command('cmake --build . --config Debug', cwd=build)
+        client.run_command(cmd_debug)
         self.assertIn("Bye Moon C Debug!", client.out)
         self.assertIn("Bye Moon B Debug!", client.out)
         self.assertIn("Hello World A Debug!", client.out)
@@ -689,15 +697,15 @@ class WorkspaceTest(unittest.TestCase):
         tools.replace_in_file(os.path.join(client.current_folder, "C/src/hello.cpp"),
                               "Bye Moon", "Hello World", output=client.out)
 
-        client.runner('cmake --build . --config Debug', cwd=build)
-        client.runner(cmd_debug, cwd=client.current_folder)
+        client.run_command('cmake --build . --config Debug', cwd=build)
+        client.run_command(cmd_debug)
         self.assertIn("Hello World C Debug!", client.out)
         self.assertIn("Bye Moon B Debug!", client.out)
         self.assertIn("Hello World A Debug!", client.out)
 
         self.assertNotIn("Release", client.out)
 
-    def build_requires_test(self):
+    def test_build_requires(self):
         # https://github.com/conan-io/conan/issues/3075
         client = TestClient()
         tool = """from conans import ConanFile
@@ -750,11 +758,10 @@ class Pkg(ConanFile):
         self.assertIn("HelloA/0.1@lasote/stable: Applying build-requirement: Tool/0.1@user/testing",
                       client.out)
         for sub in ("A", "B", "C"):
-            conanbuildinfo = load(os.path.join(client.current_folder, sub, "build",
-                                               "conanbuildinfo.cmake"))
+            conanbuildinfo = client.load(os.path.join(sub, "build", "conanbuildinfo.cmake"))
             self.assertIn("set(CONAN_LIBS_TOOL MyToolLib)", conanbuildinfo)
 
-    def use_build_requires_editable_test(self):
+    def test_use_build_requires_editable(self):
         client = TestClient()
         toolconanfile = """from conans import ConanFile
 class Tool(ConanFile):
@@ -798,11 +805,10 @@ class Pkg(ConanFile):
         self.assertIn("HelloA/0.1@lasote/stable: Applying build-requirement: Tool/0.1@user/testing",
                       client.out)
 
-        conanbuildinfo = load(os.path.join(client.current_folder, "A", "build",
-                                           "conanbuildinfo.cmake"))
+        conanbuildinfo = client.load(os.path.join("A", "build", "conanbuildinfo.cmake"))
         self.assertIn("set(CONAN_LIBS_TOOL MyToolLib)", conanbuildinfo)
 
-    def per_package_layout_test(self):
+    def test_per_package_layout(self):
         client = TestClient()
 
         def files(name, depend=None):
@@ -842,11 +848,11 @@ class Pkg(ConanFile):
         self.assertIn("HelloB/0.1@lasote/stable from user folder - Editable", client.out)
         self.assertIn("HelloC/0.1@lasote/stable from user folder - Editable", client.out)
 
-        cmake = load(os.path.join(client.current_folder, "A", "build", "conanbuildinfo.cmake"))
-        self.assertIn("myincludeC", cmake)
-        self.assertIn("myincludeB", cmake)
+        conanbuildcmake = client.load(os.path.join("A", "build", "conanbuildinfo.cmake"))
+        self.assertIn("myincludeC", conanbuildcmake)
+        self.assertIn("myincludeB", conanbuildcmake)
 
-    def generators_test(self):
+    def test_generators(self):
         client = TestClient()
 
         def files(name, depend=None):
@@ -894,7 +900,8 @@ class Pkg(ConanFile):
         self.assertTrue(os.path.exists(os.path.join(client.current_folder,
                                                     "conanworkspace.cmake")))
 
-    def gen_subdirectories_test(self):
+    @pytest.mark.tool_cmake
+    def test_gen_subdirectories(self):
         client = TestClient()
 
         def files(name, depend=None):
@@ -930,7 +937,7 @@ class Pkg(ConanFile):
         self.assertIn("HelloB/0.1@lasote/stable from user folder - Editable", client.out)
         self.assertIn("HelloC/0.1@lasote/stable from user folder - Editable", client.out)
 
-        conanws_cmake = load(os.path.join(client.current_folder, "conanworkspace.cmake"))
+        conanws_cmake = client.load("conanworkspace.cmake")
         self.assertIn("macro(conan_workspace_subdirectories)", conanws_cmake)
         for p in ("HelloC", "HelloB", "HelloA"):
             self.assertIn("add_subdirectory(${PACKAGE_%s_SRC} ${PACKAGE_%s_BUILD})" % (p, p),
@@ -968,7 +975,7 @@ class Pkg(ConanFile):
 
         # For the right folder, it works
         client.run('workspace install "{}"'.format(ws_folder))
-        conanws_cmake = load(os.path.join(client.current_folder, "conanworkspace.cmake"))
+        conanws_cmake = client.load("conanworkspace.cmake")
         self.assertIn("macro(conan_workspace_subdirectories)", conanws_cmake)
 
         # For a non existing folder, it will try to load the default filename (it fails)
@@ -1020,8 +1027,108 @@ class Pkg(ConanFile):
         self.assertTrue(os.path.exists(os.path.join(client.current_folder, "ws_install",
                                                     "conanworkspace.cmake")))
 
-    def missing_subarguments_test(self):
+    def test_install_folder_rebuilt_requirements(self):
+        # https://github.com/conan-io/conan/issues/6046
+        client = TestClient()
+        tool = dedent("""
+            from conans import ConanFile
+            class Tool(ConanFile):
+                def package_info(self):
+                    self.cpp_info.libs = ["MyToolLib"]
+            """)
+        client.save({"conanfile.py": tool})
+        client.run("export . Tool/0.1@user/testing")
+        client.save({"conanfile.py": GenConanfile().with_name("HelloB").with_version("0.1")},
+                    path=os.path.join(client.current_folder, "B"))
+        client.save({"conanfile.py": GenConanfile().with_name("HelloA").with_version(
+            "0.1").with_build_requires("Tool/0.1@user/testing").with_require("HelloB/0.1")},
+                    path=os.path.join(client.current_folder, "A"))
+
+        project = dedent("""
+            editables:
+                HelloB/0.1:
+                    path: B
+                HelloA/0.1:
+                    path: A
+            layout: layout
+            root: HelloA/0.1
+            workspace_generator: cmake
+            """)
+        layout = dedent("""
+            [build_folder]
+            build
+            """)
+        client.save({"conanws.yml": project,
+                     "layout": layout})
+        client.run("workspace install conanws.yml --install-folder=ws_install "
+                   "--build Tool/0.1@user/testing")
+        self.assertTrue(os.path.exists(os.path.join(client.current_folder, "ws_install",
+                                                    "conanworkspace.cmake")))
+
+    def test_missing_subarguments(self):
         client = TestClient()
         client.run("workspace", assert_error=True)
         self.assertIn("ERROR: Exiting with code: 2", client.out)
 
+
+def test_error_imports():
+    # https://github.com/conan-io/conan/issues/9263
+    c = TestClient()
+    conanws = dedent("""
+       editables:
+           liba/0.1:
+               path: liba
+           libb/0.1:
+               path: libb
+       layout: layout
+       root: libb/0.1
+       """)
+    libb = textwrap.dedent("""
+        from conans import ConanFile
+        class LibB(ConanFile):
+            requires = "liba/0.1"
+            generator = "cmake"
+
+            def imports(self):
+                self.copy("*.txt")
+            """)
+    layout = dedent("""
+        [build_folder]
+        build
+        """)
+    c.save({"liba/conanfile.py": GenConanfile(),
+            "liba/filea.txt": "HelloA!",
+            "libb/conanfile.py": libb,
+            "conanws.yml": conanws,
+            "layout": layout})
+    c.run("workspace install conanws.yml")
+    assert c.load("libb/build/filea.txt") == "HelloA!"
+
+
+def test_error_imports_modern():
+    # https://github.com/conan-io/conan/issues/9263
+    c = TestClient()
+    conanws = dedent("""
+       editables:
+           liba/0.1:
+               path: liba
+           libb/0.1:
+               path: libb
+       root: libb/0.1
+       """)
+    libb = textwrap.dedent("""
+        from conans import ConanFile
+        class LibB(ConanFile):
+            requires = "liba/0.1"
+            generator = "cmake"
+            def layout(self):
+                pass
+            def imports(self):
+                self.copy("*.txt")
+            """)
+    c.save({"liba/conanfile.py": GenConanfile(),
+            "liba/filea.txt": "HelloA!",
+            "libb/conanfile.py": libb,
+            "conanws.yml": conanws})
+    c.run("workspace install conanws.yml")
+    assert c.load("libb/filea.txt") == "HelloA!"

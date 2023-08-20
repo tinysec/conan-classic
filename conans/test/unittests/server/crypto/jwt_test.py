@@ -16,7 +16,7 @@ class JwtTest(unittest.TestCase):
         self.secret = "123123123qweqwe"
         self.expire_time = timedelta(seconds=1)  # No lower resolution available
 
-    def jwt_manager_test(self):
+    def test_jwt_manager(self):
         # Instance the manager to generate tokens that expires in 10 ms
 
         manager = JWTManager(self.secret, self.expire_time)
@@ -31,9 +31,9 @@ class JwtTest(unittest.TestCase):
 
         # Now wait 2 seconds and check if its valid now
         time.sleep(2)
-        self.assertRaises(jwt.ExpiredSignature, manager.get_profile, token)
+        self.assertRaises(jwt.ExpiredSignatureError, manager.get_profile, token)
 
-    def jwt_credentials_manager_test(self):
+    def test_jwt_credentials_manager(self):
         manager = JWTCredentialsManager(self.secret, self.expire_time)
         token = manager.get_token_for("lasote")
         self.assertEqual(manager.get_user(token), "lasote")

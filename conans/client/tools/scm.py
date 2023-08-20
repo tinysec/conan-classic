@@ -1,31 +1,24 @@
 import os
 import platform
 import re
-import subprocess
 import xml.etree.ElementTree as ET
-from subprocess import CalledProcessError, PIPE, STDOUT
+from subprocess import CalledProcessError
 
 from six.moves.urllib.parse import quote_plus, unquote, urlparse
 
-from conans.client.tools import check_output
 from conans.client.tools.env import environment_append, no_op
 from conans.client.tools.files import chdir
 from conans.errors import ConanException
 from conans.model.version import Version
-from conans.util.files import decode_text, to_file_bytes, walk
+from conans.util.files import decode_text, to_file_bytes, walk, mkdir
+from conans.util.runners import check_output_runner, version_runner, muted_runner, input_runner, \
+    pyinstaller_bundle_env_cleaned
 
 
-def _run_muted(cmd, folder=None):
-    with chdir(folder) if folder else no_op():
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        process.communicate()
-        return process.returncode
-
-
-def _check_repo(cmd, folder, msg=None):
-    msg = msg or "Not a valid '{}' repository".format(cmd[0])
+def _check_repo(cmd, folder):
+    msg = "'{0}' is not a valid '{1}' repository or '{1}' not found.".format(folder, cmd[0])
     try:
-        ret = _run_muted(cmd, folder=folder)
+        ret = muted_runner(cmd, folder=folder)
     except Exception:
         raise ConanException(msg)
     else:
@@ -35,6 +28,16 @@ def _check_repo(cmd, folder, msg=None):
 
 class SCMBase(object):
     cmd_command = None
+
+    @classmethod
+    def get_version(cls):
+        try:
+            out = version_runner([cls.cmd_command, "--version"])
+            version_line = decode_text(out).split('\n', 1)[0]
+            version_str = version_line.split(' ', 3)[2]
+            return Version(version_str)
+        except Exception as e:
+            raise ConanException("Error retrieving {} version: '{}'".format(cls.cmd_command, e))
 
     def __init__(self, folder=None, verify_ssl=True, username=None, password=None,
                  force_english=True, runner=None, output=None):
@@ -52,20 +55,78 @@ class SCMBase(object):
         command = "%s %s" % (self.cmd_command, command)
         with chdir(self.folder) if self.folder else no_op():
             with environment_append({"LC_ALL": "en_US.UTF-8"}) if self._force_eng else no_op():
-                if not self._runner:
-                    return check_output(command).strip()
-                else:
-                    return self._runner(command)
+                with pyinstaller_bundle_env_cleaned():
+                    if not self._runner:
+                        return check_output_runner(command).strip()
+                    else:
+                        return self._runner(command)
+
+    def _handle_scp_pattern(self, user, domain, url):
+        if self._password:
+            self._output.warn("SCM password cannot be set for scp url, ignoring parameter")
+        if self._username:
+            self._output.warn("SCM username got from URL, ignoring 'username' parameter")
+        return "{user}@{domain}:{url}".format(user=user, domain=domain, url=url)
+
+    def _handle_url_pattern(self, scheme, url, user=None, password=None):
+        if scheme in ["file", "git"]:
+            if self._username:
+                self._output.warn("SCM username cannot be set for {} url, ignoring "
+                                  "parameter".format(scheme))
+            if self._password:
+                self._output.warn("SCM password cannot be set for {} url, ignoring "
+                                  "parameter".format(scheme))
+            if user or password:
+                self._output.warn("Username/Password in URL cannot be set for '{}' SCM type, "
+                                  "removing it".format(scheme))
+            return "{scheme}://{url}".format(scheme=scheme, url=url)
+        elif scheme == "ssh" and self._password:
+            self._output.warn("SCM password cannot be set for ssh url, ignoring parameter")
+        elif password and self._password:
+            self._output.warn("SCM password got from URL, ignoring 'password' parameter")
+
+        if user and self._username:
+            self._output.warn("SCM username got from URL, ignoring 'username' parameter")
+
+        the_user = user or self._username
+        the_password = password or self._password
+
+        if the_password and the_user and scheme != "ssh":
+            return "{scheme}://{user}:{password}@{url}".format(scheme=scheme,
+                                                               user=quote_plus(the_user),
+                                                               password=quote_plus(the_password),
+                                                               url=url)
+        elif the_user:
+            if scheme == "ssh" and password:
+                self._output.warn("Password in URL cannot be set for 'ssh' SCM type, removing it")
+            return "{scheme}://{user}@{url}".format(scheme=scheme, user=quote_plus(the_user),
+                                                    url=url)
+        else:
+            return "{scheme}://{url}".format(scheme=scheme, url=url)
 
     def get_url_with_credentials(self, url):
-        if not self._username or not self._password:
-            return url
-        if urlparse(url).password:
+        if not self._username and not self._password:
             return url
 
-        user_enc = quote_plus(self._username)
-        pwd_enc = quote_plus(self._password)
-        url = url.replace("://", "://" + user_enc + ":" + pwd_enc + "@", 1)
+        scp_regex = re.compile("^(?P<user>[a-zA-Z0-9_]+)@(?P<domain>[a-zA-Z0-9._-]+):(?P<url>.*)$")
+        url_user_pass_regex = re.compile(
+            r"^(?P<scheme>file|http|https|git|ssh)://(?P<user>\w+):(?P<password>\w+)@(?P<url>.*)$")
+        url_user_regex = re.compile(
+            r"^(?P<scheme>file|http|https|git|ssh)://(?P<user>\w+)@(?P<url>.*)$")
+        url_basic_regex = re.compile(r"^(?P<scheme>file|http|https|git|ssh)://(?P<url>.*)$")
+
+        url_patterns = [
+            (scp_regex, self._handle_scp_pattern),
+            (url_user_pass_regex, self._handle_url_pattern),
+            (url_user_regex, self._handle_url_pattern),
+            (url_basic_regex, self._handle_url_pattern)
+        ]
+
+        for regex, handler in url_patterns:
+            match = regex.match(url)
+            if match:
+                return handler(**match.groupdict())
+        self._output.warn("URL type not supported, ignoring 'username' and 'password' parameters")
         return url
 
     @classmethod
@@ -74,6 +135,8 @@ class SCMBase(object):
         netloc = parsed.hostname
         if parsed.port:
             netloc += ":{}".format(parsed.port)
+        if parsed.username and parsed.scheme == "ssh":
+            netloc = "{}@{}".format(parsed.username, netloc)
         replaced = parsed._replace(netloc=netloc)
         return replaced.geturl()
 
@@ -81,49 +144,90 @@ class SCMBase(object):
 class Git(SCMBase):
     cmd_command = "git"
 
+    @property
     def _configure_ssl_verify(self):
-        # TODO: This should be a context manager
-        return self.run("config http.sslVerify %s" % ("true" if self._verify_ssl else "false"))
+        return "-c http.sslVerify=%s " % ("true" if self._verify_ssl else "false")
 
-    def clone(self, url, branch=None, args=""):
+    @property
+    def version(self):
+        if not hasattr(self, '_version'):
+            version = Git.get_version()
+            setattr(self, '_version', version)
+        return getattr(self, '_version')
+
+    def run(self, command):
+        command = self._configure_ssl_verify + command
+        return super(Git, self).run(command)
+
+    def _fetch(self, url, branch, shallow):
+        if not branch:
+            raise ConanException("The destination folder '%s' is not empty, "
+                                 "specify a branch to checkout (not a tag or commit) "
+                                 "or specify a 'subfolder' "
+                                 "attribute in the 'scm'" % self.folder)
+
+        output = self.run("init")
+        output += self.run('remote add origin "%s"' % url)
+        if shallow:
+            output += self.run('fetch --depth 1 origin "%s"' % branch)
+            output += self.run('checkout FETCH_HEAD')
+        else:
+            output += self.run("fetch")
+            output += self.run("checkout -t origin/%s" % branch)
+        return output
+
+    def clone(self, url, branch=None, args="", shallow=False):
+        """
+        :param url: repository remote URL to clone from (e.g. https, git or local)
+        :param branch: actually, can be any valid git ref expression like,
+        - None, use default branch, usually it's "master"
+        - branch name
+        - tag name
+        - revision sha256
+        - expression like HEAD~1
+        :param args: additional arguments to be passed to the git command (e.g. config args)
+        :param shallow:
+        :return: output of the clone command
+        """
+        # TODO: rename "branch" -> "element" in Conan 2.0
         url = self.get_url_with_credentials(url)
         if os.path.exists(url):
             url = url.replace("\\", "/")  # Windows local directory
-        if os.path.exists(self.folder) and os.listdir(self.folder):
-            if not branch:
-                raise ConanException("The destination folder '%s' is not empty, "
-                                     "specify a branch to checkout (not a tag or commit) "
-                                     "or specify a 'subfolder' "
-                                     "attribute in the 'scm'" % self.folder)
-            output = self.run("init")
-            output += self._configure_ssl_verify()
-            output += self.run('remote add origin "%s"' % url)
-            output += self.run("fetch ")
-            output += self.run("checkout -t origin/%s" % branch)
-        else:
-            branch_cmd = "--branch %s" % branch if branch else ""
-            output = self.run('clone "%s" . %s %s' % (url, branch_cmd, args))
-            output += self._configure_ssl_verify()
+        mkdir(self.folder)  # might not exist in case of shallow clone
+        if os.listdir(self.folder):
+            return self._fetch(url, branch, shallow)
+        if shallow and branch:
+            return self._fetch(url, branch, shallow)
+        branch_cmd = "--branch %s" % branch if branch else ""
+        shallow_cmd = "--depth 1" if shallow else ""
+        output = self.run('clone "%s" . %s %s %s' % (url, branch_cmd, shallow_cmd, args))
 
         return output
 
     def checkout(self, element, submodule=None):
+        # Element can be a tag, branch or commit
         self.check_repo()
         output = self.run('checkout "%s"' % element)
+        output += self.checkout_submodules(submodule)
 
-        if submodule:
-            if submodule == "shallow":
-                output += self.run("submodule sync")
-                output += self.run("submodule update --init")
-            elif submodule == "recursive":
-                output += self.run("submodule sync --recursive")
-                output += self.run("submodule update --init --recursive")
-            else:
-                raise ConanException("Invalid 'submodule' attribute value in the 'scm'. "
-                                     "Unknown value '%s'. Allowed values: ['shallow', 'recursive']"
-                                     % submodule)
-        # Element can be a tag, branch or commit
         return output
+
+    def checkout_submodules(self, submodule=None):
+        """Do the checkout only for submodules"""
+        if not submodule:
+            return ""
+        if submodule == "shallow":
+            output = self.run("submodule sync")
+            output += self.run("submodule update --init")
+            return output
+        elif submodule == "recursive":
+            output = self.run("submodule sync --recursive")
+            output += self.run("submodule update --init --recursive")
+            return output
+        else:
+            raise ConanException("Invalid 'submodule' attribute value in the 'scm'. "
+                                 "Unknown value '%s'. Allowed values: ['shallow', 'recursive']"
+                                 % submodule)
 
     def excluded_files(self):
         ret = []
@@ -134,11 +238,9 @@ class Git(SCMBase):
                           for folder, dirpaths, fs in walk(self.folder)
                           for el in fs + dirpaths]
             if file_paths:
-                p = subprocess.Popen(['git', 'check-ignore', '--stdin'],
-                                     stdout=PIPE, stdin=PIPE, stderr=STDOUT, cwd=self.folder)
                 paths = to_file_bytes("\n".join(file_paths))
-
-                grep_stdout = decode_text(p.communicate(input=paths)[0])
+                out = input_runner(['git', 'check-ignore', '--stdin'], paths, self.folder)
+                grep_stdout = decode_text(out)
                 ret = grep_stdout.splitlines()
         except (CalledProcessError, IOError, OSError) as e:
             if self._output:
@@ -157,6 +259,8 @@ class Git(SCMBase):
                 url, _ = url.rsplit(None, 1)
                 if remove_credentials and not os.path.exists(url):  # only if not local
                     url = self._remove_credentials_url(url)
+                if os.path.exists(url):  # Windows local directory
+                    url = url.replace("\\", "/")
                 return url
         return None
 
@@ -226,19 +330,9 @@ class SVN(SCMBase):
 
     def __init__(self, folder=None, runner=None, *args, **kwargs):
         def runner_no_strip(command):
-            return check_output(command)
+            return check_output_runner(command)
         runner = runner or runner_no_strip
         super(SVN, self).__init__(folder=folder, runner=runner, *args, **kwargs)
-
-    @staticmethod
-    def get_version():
-        try:
-            out, _ = subprocess.Popen(["svn", "--version"], stdout=subprocess.PIPE).communicate()
-            version_line = decode_text(out).split('\n', 1)[0]
-            version_str = version_line.split(' ', 3)[2]
-            return Version(version_str)
-        except Exception as e:
-            raise ConanException("Error retrieving SVN version: '{}'".format(e))
 
     @property
     def version(self):
@@ -255,6 +349,9 @@ class SVN(SCMBase):
                 extra_options += " --trust-server-cert-failures=unknown-ca"
             else:
                 extra_options += " --trust-server-cert"
+        if self._username and self._password:
+            extra_options += " --username=" + self._username
+            extra_options += " --password=" + self._password
         return super(SVN, self).run(command="{} {}".format(command, extra_options))
 
     def _show_item(self, item, target='.'):
@@ -331,7 +428,7 @@ class SVN(SCMBase):
         if self.version >= SVN.API_CHANGE_VERSION:
             try:
                 output = self.run("status -u -r {} --xml".format(self.get_revision()))
-            except subprocess.CalledProcessError:
+            except CalledProcessError:
                 return False
             else:
                 root = ET.fromstring(output)

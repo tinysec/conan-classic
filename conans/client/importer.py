@@ -1,8 +1,6 @@
-import calendar
 import fnmatch
 import os
 import stat
-import time
 
 from conans.client import tools
 from conans.client.file_copier import FileCopier, report_copied_files
@@ -10,8 +8,9 @@ from conans.client.output import ScopedOutput
 from conans.errors import ConanException
 from conans.model.conan_file import get_env_context_manager
 from conans.model.manifest import FileTreeManifest
+from conans.util.dates import timestamp_now
 from conans.util.env_reader import get_env
-from conans.util.files import load, md5sum
+from conans.util.files import load, md5sum, mkdir
 
 IMPORTS_MANIFESTS = "conan_imports_manifest.txt"
 
@@ -36,7 +35,7 @@ def undo_imports(current_path, output):
             continue
         try:
             os.remove(filepath)
-        except Exception:
+        except OSError:
             output.error("Cannot remove file (open or busy): %s" % filepath)
             not_removed += 1
 
@@ -54,7 +53,7 @@ def undo_imports(current_path, output):
 def _report_save_manifest(copied_files, output, dest_folder, manifest_name):
     report_copied_files(copied_files, output)
     if copied_files:
-        date = calendar.timegm(time.gmtime())
+        date = timestamp_now()
         file_dict = {}
         for f in copied_files:
             abs_path = os.path.join(dest_folder, f)
@@ -71,19 +70,19 @@ def _make_files_writable(file_names):
         os.chmod(file_name, os.stat(file_name).st_mode | stat.S_IWRITE)
 
 
-def run_imports(conanfile, dest_folder):
+def run_imports(conanfile):
     if not hasattr(conanfile, "imports"):
         return []
-    file_importer = _FileImporter(conanfile, dest_folder)
+    mkdir(conanfile.imports_folder)
+    file_importer = _FileImporter(conanfile, conanfile.imports_folder)
     conanfile.copy = file_importer
-    conanfile.imports_folder = dest_folder
     with get_env_context_manager(conanfile):
-        with tools.chdir(dest_folder):
+        with tools.chdir(conanfile.imports_folder):
             conanfile.imports()
     copied_files = file_importer.copied_files
     _make_files_writable(copied_files)
     import_output = ScopedOutput("%s imports()" % conanfile.display_name, conanfile.output)
-    _report_save_manifest(copied_files, import_output, dest_folder, IMPORTS_MANIFESTS)
+    _report_save_manifest(copied_files, import_output, conanfile.imports_folder, IMPORTS_MANIFESTS)
     return copied_files
 
 
@@ -111,7 +110,7 @@ def run_deploy(conanfile, install_folder):
 
     conanfile.copy_deps = file_importer
     conanfile.copy = file_copier
-    conanfile.install_folder = install_folder
+    conanfile.folders.set_base_install(install_folder)
     with get_env_context_manager(conanfile):
         with tools.chdir(install_folder):
             conanfile.deploy()
@@ -137,7 +136,7 @@ class _FileImporter(object):
         self.copied_files = set()
 
     def __call__(self, pattern, dst="", src="", root_package=None, folder=False,
-                 ignore_case=False, excludes=None, keep_path=True):
+                 ignore_case=True, excludes=None, keep_path=True):
         """
         param pattern: an fnmatch file pattern of the files that should be copied. Eg. *.dll
         param dst: the destination local folder, wrt to current conanfile dir, to which
@@ -152,21 +151,31 @@ class _FileImporter(object):
         else:
             real_dst_folder = os.path.normpath(os.path.join(self._dst_folder, dst))
 
-        matching_paths = self._get_folders(root_package)
-        for name, matching_path in matching_paths.items():
-            final_dst_path = os.path.join(real_dst_folder, name) if folder else real_dst_folder
-            file_copier = FileCopier([matching_path], final_dst_path)
-            files = file_copier(pattern, src=src, links=True, ignore_case=ignore_case,
-                                excludes=excludes, keep_path=keep_path)
-            self.copied_files.update(files)
+        pkgs = (self._conanfile.deps_cpp_info.dependencies if not root_package else
+                [(pkg, cpp_info) for pkg, cpp_info in self._conanfile.deps_cpp_info.dependencies
+                 if fnmatch.fnmatch(pkg, root_package)])
 
-    def _get_folders(self, pattern):
-        """ given the current deps graph, compute a dict {name: store-path} of
-        each dependency
-        """
-        if not pattern:
-            return {pkg: cpp_info.rootpath
-                    for pkg, cpp_info in self._conanfile.deps_cpp_info.dependencies}
-        return {pkg: cpp_info.rootpath
-                for pkg, cpp_info in self._conanfile.deps_cpp_info.dependencies
-                if fnmatch.fnmatch(pkg, pattern)}
+        symbolic_dir_name = src[1:] if src.startswith("@") else None
+        src_dirs = [src]  # hardcoded src="bin" origin
+        for pkg_name, cpp_info in pkgs:
+            final_dst_path = os.path.join(real_dst_folder, pkg_name) if folder else real_dst_folder
+            file_copier = FileCopier([cpp_info.rootpath], final_dst_path)
+            if symbolic_dir_name:  # Syntax for package folder symbolic names instead of hardcoded
+                try:
+                    src_dirs = getattr(cpp_info, symbolic_dir_name)
+                    if not isinstance(src_dirs, list):  # it can return a "config" CppInfo item!
+                        raise AttributeError
+                except AttributeError:
+                    raise ConanException("Import from unknown package folder '@%s'"
+                                         % symbolic_dir_name)
+
+                if cpp_info.components:
+                    for comp_name, comp in cpp_info.components.items():
+                        src_dir = getattr(comp, symbolic_dir_name)
+                        if isinstance(src_dirs, list):  # it can return a "config" CppInfo item!
+                            src_dirs += src_dir
+
+            for src_dir in src_dirs:
+                files = file_copier(pattern, src=src_dir, links=True, ignore_case=ignore_case,
+                                    excludes=excludes, keep_path=keep_path)
+                self.copied_files.update(files)

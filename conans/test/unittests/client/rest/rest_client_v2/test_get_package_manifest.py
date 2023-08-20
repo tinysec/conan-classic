@@ -21,12 +21,24 @@ class GetPackageManifestTestCase(unittest.TestCase):
              patch.object(ClientV2Router, "package_manifest", return_value=None):
 
             v2 = RestV2Methods(remote_url, token=None, custom_headers=None, output=None,
-                               requester=None, verify_ssl=None)
+                               requester=None, config=None, verify_ssl=None)
             with self.assertRaises(ConanException) as exc:
                 v2.get_package_manifest(pref=pref)
 
             # Exception tells me about the originating error and the request I was doing.
             self.assertIn("Error retrieving manifest file for package '{}'"
-                          " from remote ({})".format(pref.full_repr(), remote_url),
+                          " from remote ({})".format(pref.full_str(), remote_url),
                           str(exc.exception))
             self.assertIn("invalid literal for int() with base 10", str(exc.exception))
+
+    def test_unexpected_results_from_search(self):
+        remote_url = "http://some.url"
+        with patch.object(RestV2Methods, "get_json", return_value={"results": None}):
+            v2 = RestV2Methods(remote_url, token=None, custom_headers=None, output=None,
+                               requester=None, config=None, verify_ssl=None)
+            with self.assertRaises(ConanException) as exc:
+                v2.search()
+            
+            self.assertIn("Unexpected response from server.\n"
+                          "URL: `http://some.url/v2/conans/search`\n"
+                          "Expected an iterable, but got <class 'NoneType'>.", str(exc.exception))

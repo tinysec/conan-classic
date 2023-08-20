@@ -5,7 +5,6 @@ https://github.com/pypa/sampleproject
 """
 
 import os
-import platform
 import re
 # To use a consistent encoding
 from codecs import open
@@ -27,8 +26,6 @@ def get_requires(filename):
 
 
 project_requirements = get_requires("conans/requirements.txt")
-if platform.system() == "Darwin":
-    project_requirements.extend(get_requires("conans/requirements_osx.txt"))
 project_requirements.extend(get_requires("conans/requirements_server.txt"))
 dev_requirements = get_requires("conans/requirements_dev.txt")
 # The tests utils are used by conan-package-tools
@@ -38,24 +35,24 @@ exclude_test_packages = ["conans.test.{}*".format(d)
 
 
 def load_version():
-    '''Loads a file content'''
+    """ Loads a file content """
     filename = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                             "conans", "__init__.py"))
     with open(filename, "rt") as version_file:
         conan_init = version_file.read()
-        version = re.search("__version__ = '([0-9a-z.-]+)'", conan_init).group(1)
+        version = re.search(r"__version__ = '([0-9a-z.-]+)'", conan_init).group(1)
         return version
 
 
 def generate_long_description_file():
     this_directory = path.abspath(path.dirname(__file__))
-    with open(path.join(this_directory, 'README.rst'), encoding='utf-8') as f:
+    with open(path.join(this_directory, 'README.rst')) as f:
         long_description = f.read()
     return long_description
 
-
 setup(
     name='conan',
+    python_requires='>=3.6',
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
@@ -67,6 +64,11 @@ setup(
 
     # The project's main homepage.
     url='https://conan.io',
+    project_urls={
+        'Documentation': 'https://docs.conan.io',
+        'Source': 'https://github.com/conan-io/conan',
+        'Tracker': 'https://github.com/conan-io/conan/issues',
+    },
 
     # Author details
     author='JFrog LTD',
@@ -81,10 +83,10 @@ setup(
         'Intended Audience :: Developers',
         'Topic :: Software Development :: Build Tools',
         'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6'
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8'
     ],
 
     # What does your project relate to?

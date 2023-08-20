@@ -1,16 +1,17 @@
-import os
+import textwrap
 import unittest
+
+import pytest
 
 from conans.model.ref import ConanFileReference
 from conans.paths import CONANFILE, CONANFILE_TXT
-from conans.test.utils.cpp_test_files import cpp_hello_conan_files
+from conans.test.assets.genconanfile import GenConanfile
 from conans.test.utils.tools import TestClient, TestServer
-from conans.util.files import load
 
 generator = """
 from conans.model import Generator
 from conans.paths import BUILD_INFO
-from conans import ConanFile, CMake
+from conans import ConanFile
 
 class MyCustom_Generator(Generator):
     @property
@@ -39,7 +40,7 @@ MyCustom_Generator
 generator_multi = """
 from conans.model import Generator
 from conans.paths import BUILD_INFO
-from conans import ConanFile, CMake
+from conans import ConanFile
 
 class MyCustomMultiGenerator(Generator):
     @property
@@ -72,12 +73,11 @@ class CustomGeneratorTest(unittest.TestCase):
         test_server = TestServer()
         self.servers = {"default": test_server}
 
-    def reuse_test(self):
+    def test_reuse(self):
         ref = ConanFileReference.loads("Hello0/0.1@lasote/stable")
-        files = cpp_hello_conan_files("Hello0", "0.1", build=False)
 
         client = TestClient(servers=self.servers, users={"default": [("lasote", "mypass")]})
-        client.save(files)
+        client.save({"conanfile.py": GenConanfile("Hello0", "0.1")})
         client.run("export . lasote/stable")
         client.run("upload %s" % str(ref))
 
@@ -92,7 +92,7 @@ class CustomGeneratorTest(unittest.TestCase):
         files = {CONANFILE_TXT: consumer}
         client.save(files, clean_first=True)
         client.run("install . --build")
-        generated = load(os.path.join(client.current_folder, "customfile.gen"))
+        generated = client.load("customfile.gen")
         self.assertEqual(generated, "My custom generator content")
 
         # Test retrieval from remote
@@ -101,10 +101,10 @@ class CustomGeneratorTest(unittest.TestCase):
         client.save(files)
         client.run("install . --build")
 
-        generated = load(os.path.join(client.current_folder, "customfile.gen"))
+        generated = client.load("customfile.gen")
         self.assertEqual(generated, "My custom generator content")
 
-    def multifile_test(self):
+    def test_multifile(self):
         gen_ref = ConanFileReference.loads("MyCustomGen/0.2@lasote/stable")
         client = TestClient(servers=self.servers, users={"default": [("lasote", "mypass")]})
         files = {CONANFILE: generator_multi}
@@ -118,12 +118,12 @@ class CustomGeneratorTest(unittest.TestCase):
         client.run("install . --build")
         self.assertIn("Generator MyCustomMultiGenerator is multifile. "
                       "Property 'filename' not used",
-                      client.user_io.out)
+                      client.out)
         for i in (1, 2):
-            generated = load(os.path.join(client.current_folder, "file%d.gen" % i))
+            generated = client.load("file%d.gen" % i)
             self.assertEqual(generated, "CustomContent%d" % i)
 
-    def export_template_generator_test(self):
+    def test_export_template_generator(self):
         templated_generator = """
 import os
 from conans import ConanFile, load
@@ -145,5 +145,28 @@ class MyCustomGeneratorWithTemplatePackage(ConanFile):
         client.run("create . gen/0.1@user/stable")
 
         client.run("install gen/0.1@user/stable -g=MyCustomTemplateGenerator")
-        generated = load(os.path.join(client.current_folder, "customfile.gen"))
+        generated = client.load("customfile.gen")
         self.assertEqual(generated, "Template: Hello")
+
+    def test_install_folder(self):
+        # https://github.com/conan-io/conan/issues/5568
+        templated_generator = textwrap.dedent("""
+            from conans import ConanFile
+            from conans.model import Generator
+            class MyGenerator(Generator):
+                @property
+                def filename(self):
+                    return "customfile.gen"
+                @property
+                def content(self):
+                    return self.conanfile.install_folder
+
+            class MyCustomGenerator(ConanFile):
+                pass
+            """)
+        client = TestClient()
+        client.save({CONANFILE: templated_generator, "mytemplate.txt": "Template: %s"})
+        client.run("create . gen/0.1@user/stable")
+        client.run("install gen/0.1@user/stable -g=MyGenerator")
+        generated = client.load("customfile.gen")
+        self.assertEqual(generated, client.current_folder)

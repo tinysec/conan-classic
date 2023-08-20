@@ -5,6 +5,8 @@ import platform
 import tarfile
 import unittest
 
+import pytest
+
 from conans.client.tools.files import chdir
 from conans.model.manifest import gather_files
 from conans.test.utils.test_files import temp_folder
@@ -35,15 +37,15 @@ class TarExtractTest(unittest.TestCase):
                         tgz.addfile(tarinfo=info, fileobj=file_handler)
                 tgz.close()
 
-    @unittest.skipUnless(platform.system() == "Linux", "Requires Linux")
+    @pytest.mark.skipif(platform.system() != "Linux", reason="Requires Linux")
     def test_link_folder(self):
         # If there is a linked folder in the current directory that matches one file in the tar.
         # https://github.com/conan-io/conan/issues/4959
 
         # Once unpackaged, this is the content of the destination directory
         def check_files(destination_dir):
-            d = os.listdir(destination_dir)
-            self.assertListEqual(d, ["folder", "file1"])
+            d = sorted(os.listdir(destination_dir))
+            self.assertListEqual(d, ["file1", "folder"])
             d_folder = os.listdir(os.path.join(destination_dir, "folder"))
             self.assertEqual(d_folder, ["file2"])
 
