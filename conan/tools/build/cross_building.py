@@ -35,7 +35,7 @@ def can_run(conanfile):
     Validates if the current build platform can run a file which is not for same arch
     See https://github.com/conan-io/conan/issues/11035
     """
-    allowed = conanfile.conf.get("tools.build.cross_building:can_run", check_type=bool)
+    allowed = conanfile.conf.get("tools.build.cross_building.can_run", check_type=bool)
     if allowed is None:
         return not cross_building(conanfile)
     return allowed

@@ -48,7 +48,7 @@ def client():
             compiler.libcxx=c++_shared
             build_type=Release
             [conf]
-            tools.android:ndk_path={ndk_path}
+            tools.android.ndk_path={ndk_path}
         """.format(ndk_path=os.getenv("TEST_CONAN_ANDROID_NDK")))
     })
     return t

@@ -48,8 +48,8 @@ def test_apt_install_substitutes():
 
     installs = 'apt.install_substitutes(["non-existing1", "non-existing2"], ["non-existing3", "non-existing4"])'
     client.save({"conanfile.py": conanfile_py.format(installs)})
-    client.run("create . test/1.0@ -c tools.system.package_manager:mode=install "
-               "-c tools.system.package_manager:sudo=True", assert_error=True)
+    client.run("create . test/1.0@ -c tools.system.package_manager.mode=install "
+               "-c tools.system.package_manager.sudo=True", assert_error=True)
     assert "dpkg-query: no packages found matching non-existing1" in client.out
     assert "dpkg-query: no packages found matching non-existing2" in client.out
     assert "dpkg-query: no packages found matching non-existing3" in client.out
@@ -60,8 +60,8 @@ def test_apt_install_substitutes():
     client.run_command("sudo apt remove nano -yy")
     installs = 'apt.install_substitutes(["non-existing1", "non-existing2"], ["nano"], ["non-existing3"])'
     client.save({"conanfile.py": conanfile_py.format(installs)})
-    client.run("create . test/1.0@ -c tools.system.package_manager:mode=install "
-               "-c tools.system.package_manager:sudo=True")
+    client.run("create . test/1.0@ -c tools.system.package_manager.mode=install "
+               "-c tools.system.package_manager.sudo=True")
     assert "1 newly installed" in client.out
 
 
@@ -126,7 +126,7 @@ def test_brew_install_check_mode():
         """)})
     client.run("create . test/1.0@", assert_error=True)
     assert "System requirements: 'non-existing1, non-existing2' are missing but " \
-           "can't install because tools.system.package_manager:mode is 'check'" in client.out
+           "can't install because tools.system.package_manager.mode is 'check'" in client.out
 
 
 @pytest.mark.tool_brew
@@ -143,5 +143,5 @@ def test_brew_install_install_mode():
                 brew = Brew(self)
                 brew.install(["non-existing1", "non-existing2"])
         """)})
-    client.run("create . test/1.0@ -c tools.system.package_manager:mode=install", assert_error=True)
+    client.run("create . test/1.0@ -c tools.system.package_manager.mode=install", assert_error=True)
     assert "Error: No formulae found in taps." in client.out

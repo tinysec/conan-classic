@@ -3,6 +3,10 @@ a [conan](https://github.com/conan-io/conan) fork based on origin 1.60.2 to alwa
 In order to distinguish with the origin version , rename the project to conan-classic,
 but the command line is same as 1.x
 
+## Refs
+* Wiki: https://github.com/tinysec/conan-classic/wiki
+* Origin Project: https://github.com/conan-io/conan
+
 ## Why fork
 1. Many old packages written in 1.x style.
 2. 2.x is NOT compatibled with 1.x
@@ -14,8 +18,8 @@ but the command line is same as 1.x
 3. You want tools download cache worked
 4. You want easy per-site proxy feature worked
 
-## Refs
-* The 1.x Document: https://docs.conan.io/en/1.60/index.html
-* Origin Website: https://conan.io/
-* Origin Project: https://github.com/conan-io/conan
+
+## What fixed.
+1. The config keys contains ':' not workd right at windows, replaced with '.'
+2.
 

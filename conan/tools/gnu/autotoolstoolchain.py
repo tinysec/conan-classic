@@ -41,7 +41,7 @@ class AutotoolsToolchain:
         self.msvc_runtime_flag = self._get_msvc_runtime_flag()
 
         # Cross build triplets
-        self._host = self._conanfile.conf.get("tools.gnu:host_triplet")
+        self._host = self._conanfile.conf.get("tools.gnu.host_triplet")
         self._build = None
         self._target = None
 
@@ -67,7 +67,7 @@ class AutotoolsToolchain:
                 # -isysroot makes all includes for your library relative to the build directory
                 self.apple_isysroot_flag = "-isysroot {}".format(sdk_path) if sdk_path else None
 
-        sysroot = self._conanfile.conf.get("tools.build:sysroot")
+        sysroot = self._conanfile.conf.get("tools.build.sysroot")
         sysroot = sysroot.replace("\\", "/") if sysroot is not None else None
         self.sysroot_flag = "--sysroot {}".format(sysroot) if sysroot else None
 
@@ -95,7 +95,7 @@ class AutotoolsToolchain:
         ret = [self.libcxx, self.cppstd, self.arch_flag, fpic, self.msvc_runtime_flag,
                self.sysroot_flag]
         apple_flags = [self.apple_isysroot_flag, self.apple_arch_flag, self.apple_min_version_flag]
-        conf_flags = self._conanfile.conf.get("tools.build:cxxflags", default=[], check_type=list)
+        conf_flags = self._conanfile.conf.get("tools.build.cxxflags", default=[], check_type=list)
         ret = ret + self.build_type_flags + apple_flags + conf_flags + self.extra_cxxflags
         return self._filter_list_empty_fields(ret)
 
@@ -104,7 +104,7 @@ class AutotoolsToolchain:
         fpic = "-fPIC" if self.fpic else None
         ret = [self.arch_flag, fpic, self.msvc_runtime_flag, self.sysroot_flag]
         apple_flags = [self.apple_isysroot_flag, self.apple_arch_flag, self.apple_min_version_flag]
-        conf_flags = self._conanfile.conf.get("tools.build:cflags", default=[], check_type=list)
+        conf_flags = self._conanfile.conf.get("tools.build.cflags", default=[], check_type=list)
         ret = ret + self.build_type_flags + apple_flags + conf_flags + self.extra_cflags
         return self._filter_list_empty_fields(ret)
 
@@ -112,24 +112,24 @@ class AutotoolsToolchain:
     def ldflags(self):
         ret = [self.arch_flag, self.sysroot_flag]
         apple_flags = [self.apple_isysroot_flag, self.apple_arch_flag, self.apple_min_version_flag]
-        conf_flags = self._conanfile.conf.get("tools.build:sharedlinkflags", default=[],
+        conf_flags = self._conanfile.conf.get("tools.build.sharedlinkflags", default=[],
                                               check_type=list)
-        conf_flags.extend(self._conanfile.conf.get("tools.build:exelinkflags", default=[],
+        conf_flags.extend(self._conanfile.conf.get("tools.build.exelinkflags", default=[],
                                                    check_type=list))
-        linker_scripts = self._conanfile.conf.get("tools.build:linker_scripts", default=[], check_type=list)
+        linker_scripts = self._conanfile.conf.get("tools.build.linker_scripts", default=[], check_type=list)
         conf_flags.extend(["-T'" + linker_script + "'" for linker_script in linker_scripts])
         ret = ret + apple_flags + conf_flags + self.build_type_link_flags + self.extra_ldflags
         return self._filter_list_empty_fields(ret)
 
     @property
     def defines(self):
-        conf_flags = self._conanfile.conf.get("tools.build:defines", default=[], check_type=list)
+        conf_flags = self._conanfile.conf.get("tools.build.defines", default=[], check_type=list)
         ret = [self.ndebug, self.gcc_cxx11_abi] + conf_flags + self.extra_defines
         return self._filter_list_empty_fields(ret)
 
     def environment(self):
         env = Environment()
-        compilers_by_conf = self._conanfile.conf.get("tools.build:compiler_executables", default={}, check_type=dict)
+        compilers_by_conf = self._conanfile.conf.get("tools.build.compiler_executables", default={}, check_type=dict)
         if compilers_by_conf:
             compilers_mapping = {"c": "CC", "cpp": "CXX", "cuda": "NVCC", "fortran": "FC"}
             for comp, env_var in compilers_mapping.items():

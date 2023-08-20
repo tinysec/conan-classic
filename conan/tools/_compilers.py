@@ -92,7 +92,7 @@ def libcxx_flags(conanfile):
     if compiler in ['clang', 'apple-clang', 'gcc']:
         if libcxx == "libstdc++":
             stdlib11 = "_GLIBCXX_USE_CXX11_ABI=0"
-        elif libcxx == "libstdc++11" and conanfile.conf.get("tools.gnu:define_libcxx11_abi",
+        elif libcxx == "libstdc++11" and conanfile.conf.get("tools.gnu.define_libcxx11_abi",
                                                             check_type=bool):
             stdlib11 = "_GLIBCXX_USE_CXX11_ABI=1"
     return lib, stdlib11

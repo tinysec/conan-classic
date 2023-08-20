@@ -28,7 +28,7 @@ CC=dpcpp
 CXX=dpcpp
 
 [conf]
-tools.intel:installation_path=%s
+tools.intel.installation_path=%s
 """)
 
 

@@ -10,7 +10,7 @@ from conans.model.conf import ConfDefinition
 @pytest.fixture()
 def conf_definition():
     text = textwrap.dedent("""\
-        tools.microsoft.msbuild:verbosity=minimal
+        tools.microsoft.msbuild.verbosity=minimal
         user.company.toolchain:flags=someflags
     """)
     c = ConfDefinition()
@@ -23,9 +23,9 @@ def test_conf_definition(conf_definition):
     # Round trip
     assert c.dumps() == text
     # access
-    assert c["tools.microsoft.msbuild:verbosity"] == "minimal"
+    assert c["tools.microsoft.msbuild.verbosity"] == "minimal"
     assert c["user.company.toolchain:flags"] == "someflags"
-    assert c["tools.microsoft.msbuild:nonexist"] is None
+    assert c["tools.microsoft.msbuild.nonexist"] is None
     assert c["nonexist:nonexist"] is None
     # bool
     assert bool(c)
@@ -42,7 +42,7 @@ def test_conf_update(conf_definition):
     c2.loads(text)
     c.update_conf_definition(c2)
     result = textwrap.dedent("""\
-        tools.microsoft.msbuild:verbosity=minimal
+        tools.microsoft.msbuild.verbosity=minimal
         user.company.toolchain:flags=newvalue
         another.something:key=value
     """)
@@ -59,7 +59,7 @@ def test_conf_rebase(conf_definition):
     c.rebase_conf_definition(c2)
     # The c profile will have precedence, and "
     result = textwrap.dedent("""\
-        tools.microsoft.msbuild:verbosity=minimal
+        tools.microsoft.msbuild.verbosity=minimal
         user.company.toolchain:flags=someflags
     """)
     assert c.dumps() == result
@@ -234,6 +234,6 @@ def test_conf_pop():
     c.loads(text)
 
     assert c.pop("user.company.network:proxies") == {'url': 'http://api.site.com/apiv2', 'dataType': 'json', 'method': 'GET'}
-    assert c.pop("tools.microsoft.msbuild:missing") is None
-    assert c.pop("tools.microsoft.msbuild:missing", default="fake") == "fake"
+    assert c.pop("tools.microsoft.msbuild.missing") is None
+    assert c.pop("tools.microsoft.msbuild.missing", default="fake") == "fake"
     assert c.pop("zlib:user.company.check:shared_str") == '"False"'

@@ -11,7 +11,7 @@ def test_basic():
         class Pkg(ConanFile):
 
             def package_info(self):
-                self.conf_info["tools.android:ndk_path"] = "MY-NDK!!!"
+                self.conf_info["tools.android.ndk_path"] = "MY-NDK!!!"
         """)
     client.save({"conanfile.py": conanfile})
     client.run("create . android_ndk/1.0@")
@@ -25,12 +25,12 @@ def test_basic():
             build_requires = "android_ndk/1.0"
 
             def generate(self):
-                self.output.info("NDK: %s" % self.conf["tools.android:ndk_path"])
+                self.output.info("NDK: %s" % self.conf["tools.android.ndk_path"])
         """)
     android_profile = textwrap.dedent("""
         include(default)
         [conf]
-        tools.android:ndk_path=MY-SYSTEM-NDK!!!
+        tools.android.ndk_path=MY-SYSTEM-NDK!!!
         """)
     client.save({"conanfile.py": consumer,
                  "android": android_profile}, clean_first=True)
@@ -49,7 +49,7 @@ def test_basic_conf_through_cli():
         class Pkg(ConanFile):
 
             def package_info(self):
-                self.output.info("NDK build: %s" % self.conf["tools.android:ndk_path"])
+                self.output.info("NDK build: %s" % self.conf["tools.android.ndk_path"])
         """)
     client.save({"conanfile.py": conanfile})
     client.run("create . android_ndk/1.0@")
@@ -63,11 +63,11 @@ def test_basic_conf_through_cli():
             build_requires = "android_ndk/1.0"
 
             def generate(self):
-                self.output.info("NDK host: %s" % self.conf["tools.android:ndk_path"])
+                self.output.info("NDK host: %s" % self.conf["tools.android.ndk_path"])
         """)
     client.save({"conanfile.py": consumer}, clean_first=True)
-    client.run('install . -c:b=tools.android:ndk_path="MY-NDK!!!" '
-               '-c:h=tools.android:ndk_path="MY-SYSTEM-NDK!!!"')
+    client.run('install . -c:b=tools.android.ndk_path="MY-NDK!!!" '
+               '-c:h=tools.android.ndk_path="MY-SYSTEM-NDK!!!"')
     assert "android_ndk/1.0: NDK build: MY-NDK!!!" in client.out
     assert "conanfile.py: NDK host: MY-SYSTEM-NDK!!!" in client.out
 
@@ -79,7 +79,7 @@ def test_declared_generators_get_conf():
         from conans import ConanFile
         class Pkg(ConanFile):
             def package_info(self):
-                self.conf_info.append("tools.cmake.cmaketoolchain:user_toolchain", "mytoolchain.cmake")
+                self.conf_info.append("tools.cmake.cmaketoolchain.user_toolchain", "mytoolchain.cmake")
         """)
     client.save({"conanfile.py": conanfile})
     client.run("create . mytool/1.0@")

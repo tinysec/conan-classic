@@ -18,8 +18,8 @@ expected_results = [
 def test_unix_path(subsystem, expected_path):
     c = ConfDefinition()
     c.loads(textwrap.dedent("""\
-        tools.microsoft.bash:subsystem={}
-        tools.microsoft.bash:active=True
+        tools.microsoft.bash.subsystem={}
+        tools.microsoft.bash.active=True
     """.format(subsystem)))
 
     settings = MockSettings({"os": "Windows"})

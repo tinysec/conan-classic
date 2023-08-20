@@ -210,7 +210,7 @@ class DownloadCacheTest(unittest.TestCase):
 
         client = TestClient()
         cache_folder = temp_folder()
-        save(client.cache.new_config_path, "tools.files.download:download_cache=%s" % cache_folder)
+        save(client.cache.new_config_path, "tools.files.download.download_cache=%s" % cache_folder)
         # badchecksums are not cached
         conanfile = textwrap.dedent("""
            from conans import ConanFile

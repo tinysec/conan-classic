@@ -6,7 +6,7 @@ from conans.util.files import load
 
 
 def build_jobs(conanfile):
-    njobs = conanfile.conf.get("tools.build:jobs",
+    njobs = conanfile.conf.get("tools.build.jobs",
                                default=_cpu_count(),
                                check_type=int)
     return njobs

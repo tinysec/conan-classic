@@ -43,7 +43,7 @@ class Autotools(object):
         self._conanfile.run(cmd)
 
     def make(self, target=None, args=None):
-        make_program = self._conanfile.conf.get("tools.gnu:make_program",
+        make_program = self._conanfile.conf.get("tools.gnu.make_program",
                                                 default="mingw32-make" if self._use_win_mingw()
                                                 else "make")
         str_args = self._make_args

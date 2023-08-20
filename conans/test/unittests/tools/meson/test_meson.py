@@ -8,7 +8,7 @@ from conans.test.utils.mocks import ConanFileMock, MockSettings
 def test_meson_build():
     c = ConfDefinition()
     c.loads(textwrap.dedent("""\
-        tools.build:jobs=10
+        tools.build.jobs=10
     """))
 
     settings = MockSettings({"build_type": "Release",

@@ -64,7 +64,7 @@ def client():
                 self.runenv_info.define("MYGTESTVAR", "MyGTestValue{}".format(self.settings.os))
             """)
     client = TestClient()
-    save(client.cache.new_config_path, "tools.env.virtualenv:auto_use=True")
+    save(client.cache.new_config_path, "tools.env.virtualenv.auto_use=True")
     client.save({"cmake/conanfile.py": cmake,
                  "gtest/conanfile.py": gtest,
                  "openssl/conanfile.py": openssl})
@@ -165,7 +165,7 @@ def test_profile_included_multiple():
 
 def test_profile_buildenv():
     client = TestClient()
-    save(client.cache.new_config_path, "tools.env.virtualenv:auto_use=True")
+    save(client.cache.new_config_path, "tools.env.virtualenv.auto_use=True")
     conanfile = textwrap.dedent("""\
         import os, platform
         from conans import ConanFile
@@ -539,7 +539,7 @@ def test_massive_paths(num_deps):
     requires = ", ".join('"pkg{}/0.1"'.format(i) for i in range(num_deps))
     conanfile = conanfile.format(requires)
     client.save({"conanfile.py": conanfile}, clean_first=True)
-    client.run("install . -c tools.env.virtualenv:powershell=True")
+    client.run("install . -c tools.env.virtualenv.powershell=True")
     assert os.path.isfile(os.path.join(client.current_folder, "conanrunenv.ps1"))
     assert not os.path.isfile(os.path.join(client.current_folder, "conanrunenv.bat"))
     for i in range(num_deps):

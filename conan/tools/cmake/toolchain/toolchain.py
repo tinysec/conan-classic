@@ -173,7 +173,7 @@ class CMakeToolchain(object):
         return content
 
     def generate(self):
-        toolchain_file = self._conanfile.conf.get("tools.cmake.cmaketoolchain:toolchain_file")
+        toolchain_file = self._conanfile.conf.get("tools.cmake.cmaketoolchain.toolchain_file")
         if toolchain_file is None:  # The main toolchain file generated only if user dont define
             save(os.path.join(self._conanfile.generators_folder, self.filename), self.content)
         # If we're using Intel oneAPI, we need to generate the environment file and run it
@@ -206,7 +206,7 @@ class CMakeToolchain(object):
         conanfile = self._conanfile
 
         # Downstream consumer always higher priority
-        generator_conf = conanfile.conf.get("tools.cmake.cmaketoolchain:generator")
+        generator_conf = conanfile.conf.get("tools.cmake.cmaketoolchain.generator")
         if generator_conf:
             return generator_conf
 

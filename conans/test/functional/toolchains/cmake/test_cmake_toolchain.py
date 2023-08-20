@@ -50,7 +50,7 @@ def test_cmake_toolchain_user_toolchain():
     client = TestClient(path_with_spaces=False)
     conanfile = GenConanfile().with_settings("os", "compiler", "build_type", "arch").\
         with_generator("CMakeToolchain")
-    save(client.cache.new_config_path, "tools.cmake.cmaketoolchain:user_toolchain+=mytoolchain.cmake")
+    save(client.cache.new_config_path, "tools.cmake.cmaketoolchain.user_toolchain+=mytoolchain.cmake")
 
     client.save({"conanfile.py": conanfile})
     client.run("install .")
@@ -62,7 +62,7 @@ def test_cmake_toolchain_custom_toolchain():
     client = TestClient(path_with_spaces=False)
     conanfile = GenConanfile().with_settings("os", "compiler", "build_type", "arch").\
         with_generator("CMakeToolchain")
-    save(client.cache.new_config_path, "tools.cmake.cmaketoolchain:toolchain_file=mytoolchain.cmake")
+    save(client.cache.new_config_path, "tools.cmake.cmaketoolchain.toolchain_file=mytoolchain.cmake")
 
     client.save({"conanfile.py": conanfile})
     client.run("install .")
@@ -152,7 +152,7 @@ def test_cmake_toolchain_user_toolchain_from_dep():
                 self.copy("*")
             def package_info(self):
                 f = os.path.join(self.package_folder, "mytoolchain.cmake")
-                self.conf_info.append("tools.cmake.cmaketoolchain:user_toolchain", f)
+                self.conf_info.append("tools.cmake.cmaketoolchain.user_toolchain", f)
         """)
     client.save({"conanfile.py": conanfile,
                  "mytoolchain.cmake": 'message(STATUS "mytoolchain.cmake !!!running!!!")'})
@@ -193,7 +193,7 @@ def test_cmake_toolchain_without_build_type():
 
 def test_cmake_toolchain_multiple_user_toolchain():
     """ A consumer consuming two packages that declare:
-            self.conf_info["tools.cmake.cmaketoolchain:user_toolchain"]
+            self.conf_info["tools.cmake.cmaketoolchain.user_toolchain"]
         The consumer wants to use apply both toolchains in the CMakeToolchain.
         There are two ways to customize the CMakeToolchain (parametrized):
                 1. Altering the context of the block (with_context = True)
@@ -209,7 +209,7 @@ def test_cmake_toolchain_multiple_user_toolchain():
                 self.copy("*")
             def package_info(self):
                 f = os.path.join(self.package_folder, "mytoolchain.cmake")
-                self.conf_info.append("tools.cmake.cmaketoolchain:user_toolchain", f)
+                self.conf_info.append("tools.cmake.cmaketoolchain.user_toolchain", f)
         """)
     client.save({"conanfile.py": conanfile,
                  "mytoolchain.cmake": 'message(STATUS "mytoolchain1.cmake !!!running!!!")'})
@@ -315,10 +315,10 @@ def test_cmake_toolchain_definitions_complex_strings():
     profile = textwrap.dedent(r'''
         include(default)
         [conf]
-        tools.build:defines+=["escape=partially \"escaped\""]
-        tools.build:defines+=["spaces=me you"]
-        tools.build:defines+=["foobar=bazbuz"]
-        tools.build:defines+=["answer=42"]
+        tools.build.defines+=["escape=partially \"escaped\""]
+        tools.build.defines+=["spaces=me you"]
+        tools.build.defines+=["foobar=bazbuz"]
+        tools.build.defines+=["answer=42"]
     ''')
 
     conanfile = textwrap.dedent(r'''
@@ -556,8 +556,8 @@ def test_cmake_toolchain_runtime_types_cmake_older_than_3_15():
 def test_cmake_presets_missing_option():
     client = TestClient(path_with_spaces=False)
     client.run("new hello/0.1 --template=cmake_exe")
-    settings_layout = '-c tools.cmake.cmake_layout:build_folder_vars=\'["options.missing"]\' ' \
-                      '-c tools.cmake.cmaketoolchain:generator=Ninja'
+    settings_layout = '-c tools.cmake.cmake_layout.build_folder_vars=\'["options.missing"]\' ' \
+                      '-c tools.cmake.cmaketoolchain.generator=Ninja'
     client.run("install . {}".format(settings_layout))
     assert os.path.exists(os.path.join(client.current_folder, "build", "Release", "generators"))
 
@@ -566,8 +566,8 @@ def test_cmake_presets_missing_option():
 def test_cmake_presets_missing_setting():
     client = TestClient(path_with_spaces=False)
     client.run("new hello/0.1 --template=cmake_exe")
-    settings_layout = '-c tools.cmake.cmake_layout:build_folder_vars=\'["settings.missing"]\' ' \
-                      '-c tools.cmake.cmaketoolchain:generator=Ninja'
+    settings_layout = '-c tools.cmake.cmake_layout.build_folder_vars=\'["settings.missing"]\' ' \
+                      '-c tools.cmake.cmaketoolchain.generator=Ninja'
     client.run("install . {}".format(settings_layout))
     assert os.path.exists(os.path.join(client.current_folder, "build", "Release", "generators"))
 
@@ -576,7 +576,7 @@ def test_cmake_presets_missing_setting():
 def test_cmake_presets_multiple_settings_single_config():
     client = TestClient(path_with_spaces=False)
     client.run("new hello/0.1 --template=cmake_exe")
-    settings_layout = '-c tools.cmake.cmake_layout:build_folder_vars=' \
+    settings_layout = '-c tools.cmake.cmake_layout.build_folder_vars=' \
                       '\'["settings.compiler", "settings.compiler.version", ' \
                       '   "settings.compiler.cppstd"]\''
 
@@ -681,10 +681,10 @@ def test_cmake_presets_duplicated_install(multiconfig):
     client = TestClient(path_with_spaces=False)
     client.run("new hello/0.1 --template=cmake_exe")
     settings = '-s compiler=gcc -s compiler.version=5 -s compiler.libcxx=libstdc++11 ' \
-               '-c tools.cmake.cmake_layout:build_folder_vars=' \
+               '-c tools.cmake.cmake_layout.build_folder_vars=' \
                '\'["settings.compiler", "settings.compiler.version"]\' '
     if multiconfig:
-        settings += '-c tools.cmake.cmaketoolchain:generator="Multi-Config"'
+        settings += '-c tools.cmake.cmaketoolchain.generator="Multi-Config"'
     client.run("install . {}".format(settings))
     client.run("install . {}".format(settings))
     if multiconfig:
@@ -704,7 +704,7 @@ def test_remove_missing_presets():
     client = TestClient(path_with_spaces=False)
     client.run("new hello/0.1 --template=cmake_exe")
     settings = '-s compiler=gcc -s compiler.version=5 -s compiler.libcxx=libstdc++11 ' \
-               '-c tools.cmake.cmake_layout:build_folder_vars=' \
+               '-c tools.cmake.cmake_layout.build_folder_vars=' \
                '\'["settings.compiler", "settings.compiler.version"]\' '
     client.run("install . {}".format(settings))
     client.run("install . {} -s compiler.version=6".format(settings))
@@ -733,7 +733,7 @@ def test_remove_missing_presets():
 def test_cmake_presets_options_single_config():
     client = TestClient(path_with_spaces=False)
     client.run("new hello/0.1 --template=cmake_lib")
-    conf_layout = '-c tools.cmake.cmake_layout:build_folder_vars=\'["settings.compiler",' \
+    conf_layout = '-c tools.cmake.cmake_layout.build_folder_vars=\'["settings.compiler",' \
                   '"settings.build_type", "options.shared"]\''
 
     default_compiler = {"Darwin": "apple-clang",
@@ -773,7 +773,7 @@ def test_cmake_presets_options_single_config():
 def test_cmake_presets_multiple_settings_multi_config():
     client = TestClient(path_with_spaces=False)
     client.run("new hello/0.1 --template=cmake_exe")
-    settings_layout = '-c tools.cmake.cmake_layout:build_folder_vars=' \
+    settings_layout = '-c tools.cmake.cmake_layout.build_folder_vars=' \
                       '\'["settings.compiler.runtime", "settings.compiler.cppstd"]\''
 
     user_presets_path = os.path.join(client.current_folder, "CMakeUserPresets.json")
@@ -865,7 +865,7 @@ def test_cmake_presets_multiple_settings_multi_config():
 def test_max_schema_version2_build():
     client = TestClient(path_with_spaces=False)
     client.run("new hello/0.1 --template=cmake_exe")
-    configs = ["-c tools.cmake.cmaketoolchain.presets:max_schema_version=2"]
+    configs = ["-c tools.cmake.cmaketoolchain.presets.max_schema_version=2"]
     client.run("install . {} -s compiler.cppstd=14".format(" ".join(configs)))
     client.run("build .")
 
@@ -874,8 +874,8 @@ def test_max_schema_version2_build():
 def test_user_presets_version2():
     client = TestClient(path_with_spaces=False)
     client.run("new hello/0.1 --template=cmake_exe")
-    configs = ["-c tools.cmake.cmaketoolchain.presets:max_schema_version=2 ",
-               "-c tools.cmake.cmake_layout:build_folder_vars='[\"settings.compiler.cppstd\"]'"]
+    configs = ["-c tools.cmake.cmaketoolchain.presets.max_schema_version=2 ",
+               "-c tools.cmake.cmake_layout.build_folder_vars='[\"settings.compiler.cppstd\"]'"]
     client.run("install . {} -s compiler.cppstd=14".format(" ".join(configs)))
     client.run("install . {} -s compiler.cppstd=17".format(" ".join(configs)))
     client.run("install . {} -s compiler.cppstd=20".format(" ".join(configs)))
@@ -954,7 +954,7 @@ def test_cmaketoolchain_sysroot():
 
     fake_sysroot = client.current_folder
     output_fake_sysroot = fake_sysroot.replace("\\", "/") if platform.system() == "Windows" else fake_sysroot
-    client.run("create . app/1.0@ -c tools.build:sysroot='{}'".format(fake_sysroot))
+    client.run("create . app/1.0@ -c tools.build.sysroot='{}'".format(fake_sysroot))
     assert "sysroot: '{}'".format(output_fake_sysroot) in client.out
 
     # set in a block instead of using conf
@@ -1017,7 +1017,7 @@ def test_cmake_presets_not_forbidden_build_type():
     client = TestClient(path_with_spaces=False)
     client.run("new hello/0.1 --template cmake_exe")
     # client.run("new cmake_exe -d name=hello -d version=0.1")
-    settings_layout = '-c tools.cmake.cmake_layout:build_folder_vars=' \
+    settings_layout = '-c tools.cmake.cmake_layout.build_folder_vars=' \
                       '\'["options.missing", "settings.build_type"]\''
     client.run("install . {}".format(settings_layout))
     assert os.path.exists(os.path.join(client.current_folder,
@@ -1277,12 +1277,12 @@ def test_find_program_for_tool_requires(single_profile):
         "CMakeLists.txt": cmakelists_consumer,
         "host_profile": host_profile,
         "build_profile": build_profile}, clean_first=True)
-    
+
     if single_profile:
         profiles = "-pr host_profile"
     else:
         profiles = "-pr:b build_profile -pr:h host_profile"
-    
+
     client.run(f"install conanfile_consumer.py pkg/0.1@ -g CMakeToolchain -g CMakeDeps {profiles}")
 
     with client.chdir("build"):

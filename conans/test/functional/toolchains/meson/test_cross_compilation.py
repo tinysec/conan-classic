@@ -164,7 +164,7 @@ def test_android_meson_toolchain_cross_compiling(arch, expected_arch):
     arch = {arch}
 
     [conf]
-    tools.android:ndk_path={ndk_path}
+    tools.android.ndk_path={ndk_path}
     """)
     hello_h = gen_function_h(name="hello")
     hello_cpp = gen_function_cpp(name="hello", preprocessor=["STRING_DEFINITION"])

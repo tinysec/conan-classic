@@ -144,7 +144,7 @@ class TestMesonToolchainAndGnuFlags(TestMesonBase):
                      "main.cpp": main},
                     clean_first=True)
 
-        client.run("install . %s -c 'tools.build:cxxflags=[%s]'" % (self._settings_str, flags))
+        client.run("install . %s -c 'tools.build.cxxflags=[%s]'" % (self._settings_str, flags))
         client.run("build .")
 
         app_name = "demo.exe" if platform.system() == "Windows" else "demo"

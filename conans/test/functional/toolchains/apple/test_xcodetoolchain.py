@@ -84,7 +84,7 @@ def test_project_xcodetoolchain(cppstd, cppstd_output, min_version):
     sdk_version = "11.3"
     settings = "-s arch=x86_64 -s os.sdk=macosx -s os.sdk_version={} -s compiler.cppstd={} " \
                "-s compiler.libcxx=libc++ -s os.version={} " \
-               "-c 'tools.build:cflags=[\"-fstack-protector-strong\"]'".format(sdk_version, cppstd, min_version)
+               "-c 'tools.build.cflags=[\"-fstack-protector-strong\"]'".format(sdk_version, cppstd, min_version)
 
     client.run("create . -s build_type=Release {} --build=missing".format(settings))
     assert "main __x86_64__ defined" in client.out

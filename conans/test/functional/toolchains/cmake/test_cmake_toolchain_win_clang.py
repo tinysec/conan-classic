@@ -19,7 +19,7 @@ def client():
     # like F and Visual WONT FIND ClangCL
     t = tempfile.mkdtemp(suffix='conans')
     c = TestClient(cache_folder=t)
-    save(c.cache.new_config_path, "tools.env.virtualenv:auto_use=True")
+    save(c.cache.new_config_path, "tools.env.virtualenv.auto_use=True")
     clang_profile = textwrap.dedent("""
         [settings]
         os=Windows
@@ -28,7 +28,7 @@ def client():
         compiler=clang
         compiler.version=12
         [conf]
-        tools.build:compiler_executables={"cpp": "clang++", "c": "clang", "rc": "clang"}
+        tools.build.compiler_executables={"cpp": "clang++", "c": "clang", "rc": "clang"}
         """)
     conanfile = textwrap.dedent("""
         import os
@@ -97,7 +97,7 @@ class TestLLVMClang:
     def test_clang_cmake_ninja_nmake(self, client, generator):
         client.run("create . pkg/0.1@ -pr=clang -s compiler.runtime=dynamic "
                    "-s compiler.runtime_version=v143 "
-                   '-c tools.cmake.cmaketoolchain:generator="{}"'.format(generator))
+                   '-c tools.cmake.cmaketoolchain.generator="{}"'.format(generator))
 
         assert 'cmake -G "{}"'.format(generator) in client.out
         assert "GNU-like command-line" in client.out
@@ -119,7 +119,7 @@ class TestLLVMClang:
                                                       appsources=["src/main.cpp"])})
         client.run("create . pkg/0.1@ -pr=clang -s compiler.runtime=dynamic -s compiler.cppstd=17 "
                    "-s compiler.runtime_version=v142 "
-                   '-c tools.cmake.cmaketoolchain:generator="{}"'.format(generator))
+                   '-c tools.cmake.cmaketoolchain.generator="{}"'.format(generator))
 
         assert 'cmake -G "{}"'.format(generator) in client.out
         assert "GNU-like command-line" in client.out
@@ -146,7 +146,7 @@ class TestVSClangCL:
         generator = "Visual Studio 17"
         client.run("create . pkg/0.1@ -pr=clang -s compiler.runtime=dynamic "
                    "-s compiler.cppstd=17 -s compiler.runtime_version=v143 "
-                   '-c tools.cmake.cmaketoolchain:generator="{}"'.format(generator))
+                   '-c tools.cmake.cmaketoolchain.generator="{}"'.format(generator))
         assert 'cmake -G "{}"'.format(generator) in client.out
         assert "MSVC-like command-line" in client.out
         assert "main __clang_major__14" in client.out
@@ -172,7 +172,7 @@ class TestMsysClang:
         """
         client.run('create . pkg/0.1@ -pr=clang -s os.subsystem=msys2 '
                    '-s compiler.libcxx=libc++ '
-                   '-c tools.cmake.cmaketoolchain:generator="MinGW Makefiles"')
+                   '-c tools.cmake.cmaketoolchain.generator="MinGW Makefiles"')
         # clang compilations in Windows will use MinGW Makefiles by default
         assert 'cmake -G "MinGW Makefiles"' in client.out
         # TODO: Version is still not controlled
@@ -258,7 +258,7 @@ class TestMsysClang:
 @pytest.mark.skipif(platform.system() != "Windows", reason="requires Win")
 def test_error_clang_cmake_ninja_custom_cxx(client):
     with environment_append({"CXX": "/no/exist/clang++"}):
-        client.run("create . pkg/0.1@ -pr=clang -c tools.cmake.cmaketoolchain:generator=Ninja",
+        client.run("create . pkg/0.1@ -pr=clang -c tools.cmake.cmaketoolchain.generator=Ninja",
                    assert_error=True)
         assert 'Could not find compiler' in client.out
         assert '/no/exist/clang++' in client.out
@@ -274,7 +274,7 @@ def test_error_clang_cmake_ninja_custom_cxx(client):
         CXX=/no/exist/clang++
         """)
     client.save({"clang":     clang_profile})
-    client.run("create . pkg/0.1@ -pr=clang -c tools.cmake.cmaketoolchain:generator=Ninja",
+    client.run("create . pkg/0.1@ -pr=clang -c tools.cmake.cmaketoolchain.generator=Ninja",
                assert_error=True)
     assert 'Could not find compiler' in client.out
     assert '/no/exist/clang++' in client.out

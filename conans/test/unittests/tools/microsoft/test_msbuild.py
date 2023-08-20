@@ -33,7 +33,7 @@ def test_msbuild_targets():
 def test_msbuild_cpu_count():
     c = ConfDefinition()
     c.loads(textwrap.dedent("""\
-        tools.microsoft.msbuild:max_cpu_count=23
+        tools.microsoft.msbuild.max_cpu_count=23
     """))
 
     settings = MockSettings({"build_type": "Release",
@@ -109,7 +109,7 @@ def test_msbuild_standard():
     conanfile.folders.set_base_generators(test_folder)
     conanfile.folders.set_base_install(test_folder)
     conanfile.conf = Conf()
-    conanfile.conf["tools.microsoft.msbuild:installation_path"] = "."
+    conanfile.conf["tools.microsoft.msbuild.installation_path"] = "."
     conanfile.settings = "os", "compiler", "build_type", "arch"
     conanfile.initialize(settings, EnvValues())
     conanfile.settings.build_type = "Release"
@@ -136,7 +136,7 @@ def test_resource_compile():
     conanfile.folders.set_base_generators(test_folder)
     conanfile.folders.set_base_install(test_folder)
     conanfile.conf = Conf()
-    conanfile.conf["tools.microsoft.msbuild:installation_path"] = "."
+    conanfile.conf["tools.microsoft.msbuild.installation_path"] = "."
     conanfile.settings = "os", "compiler", "build_type", "arch"
     conanfile.settings_build = settings
     conanfile.initialize(settings, EnvValues())
@@ -180,8 +180,8 @@ def test_msbuild_and_intel_cc_props(mode, expected_toolset):
     conanfile.folders.set_base_generators(test_folder)
     conanfile.folders.set_base_install(test_folder)
     conanfile.conf = Conf()
-    conanfile.conf["tools.intel:installation_path"] = "my/intel/oneapi/path"
-    conanfile.conf["tools.microsoft.msbuild:installation_path"] = "."
+    conanfile.conf["tools.intel.installation_path"] = "my/intel/oneapi/path"
+    conanfile.conf["tools.microsoft.msbuild.installation_path"] = "."
     conanfile.settings = "os", "compiler", "build_type", "arch"
     conanfile.initialize(settings, EnvValues())
     conanfile.settings.build_type = "Release"
@@ -260,7 +260,7 @@ def test_msbuildtoolchain_changing_flags_via_attributes():
     conanfile.folders.set_base_generators(test_folder)
     conanfile.folders.set_base_install(test_folder)
     conanfile.conf = Conf()
-    conanfile.conf["tools.microsoft.msbuild:installation_path"] = "."
+    conanfile.conf["tools.microsoft.msbuild.installation_path"] = "."
     conanfile.settings = "os", "compiler", "build_type", "arch"
     conanfile.settings_build = settings
     conanfile.initialize(settings, EnvValues())

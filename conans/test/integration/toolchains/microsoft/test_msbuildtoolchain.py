@@ -14,11 +14,11 @@ def test_msbuildtoolchain_props_with_extra_flags():
     [settings]
     arch=x86_64
     [conf]
-    tools.build:cxxflags=["--flag1", "--flag2"]
-    tools.build:cflags+=["--flag3", "--flag4"]
-    tools.build:sharedlinkflags+=["--flag5"]
-    tools.build:exelinkflags+=["--flag6"]
-    tools.build:defines+=["DEF1", "DEF2"]
+    tools.build.cxxflags=["--flag1", "--flag2"]
+    tools.build.cflags+=["--flag3", "--flag4"]
+    tools.build.sharedlinkflags+=["--flag5"]
+    tools.build.exelinkflags+=["--flag6"]
+    tools.build.defines+=["DEF1", "DEF2"]
     """)
     client = TestClient()
     client.run("new hello/0.1 --template=msbuild_lib")

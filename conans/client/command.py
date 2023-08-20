@@ -2323,7 +2323,7 @@ def _add_profile_arguments(parser):
                             dest='conf_{}'.format(machine),
                             help='Configuration to build the package, overwriting the defaults'
                                  ' ({} machine). e.g.: -c{} '
-                                 'tools.cmake.cmaketoolchain:generator=Xcode'.format(machine,
+                                 'tools.cmake.cmaketoolchain.generator=Xcode'.format(machine,
                                                                                      short_suffix))
 
     for item_fn in [environment_args, options_args, profile_args, settings_args, conf_args]:

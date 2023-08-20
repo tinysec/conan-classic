@@ -10,7 +10,7 @@ from conans.test.utils.mocks import ConanFileMock, MockSettings
 def test_verbosity(mode):
     conanfile = ConanFileMock()
     conf = ConfDefinition()
-    conf.loads("tools.apple.xcodebuild:verbosity={}".format(mode))
+    conf.loads("tools.apple.xcodebuild.verbosity={}".format(mode))
     conanfile.conf = conf
     conanfile.settings = MockSettings({})
     xcodebuild = XcodeBuild(conanfile)
@@ -20,14 +20,14 @@ def test_verbosity(mode):
     else:
         with pytest.raises(ConanException) as excinfo:
             xcodebuild.build("app.xcodeproj")
-        assert "Value {} for 'tools.apple.xcodebuild:verbosity' is not valid".format(mode) == str(
+        assert "Value {} for 'tools.apple.xcodebuild.verbosity' is not valid".format(mode) == str(
             excinfo.value)
 
 
 def test_sdk_path():
     conanfile = ConanFileMock()
     conf = ConfDefinition()
-    conf.loads("tools.apple:sdk_path=mypath")
+    conf.loads("tools.apple.sdk_path=mypath")
     conanfile.conf = conf
     conanfile.settings = MockSettings({})
     xcodebuild = XcodeBuild(conanfile)
@@ -38,7 +38,7 @@ def test_sdk_path():
 def test_sdk():
     conanfile = ConanFileMock()
     conf = ConfDefinition()
-    conf.loads("tools.apple:sdk_path=mypath")
+    conf.loads("tools.apple.sdk_path=mypath")
     conanfile.conf = conf
     conanfile.settings = MockSettings({"os": "Macos",
                                        "os.sdk": "macosx"})

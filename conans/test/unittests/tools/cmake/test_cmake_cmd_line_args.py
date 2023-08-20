@@ -11,7 +11,7 @@ from conans.test.utils.mocks import ConanFileMock
 def conanfile():
     c = ConfDefinition()
     c.loads(textwrap.dedent("""\
-        tools.build:jobs=10
+        tools.build.jobs=10
     """))
 
     conanfile = ConanFileMock()

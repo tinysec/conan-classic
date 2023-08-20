@@ -217,7 +217,7 @@ class WinTest(Base):
                     "build_type": build_type,
                     }
         options = {"shared": shared}
-        save(self.client.cache.new_config_path, "tools.build:jobs=1")
+        save(self.client.cache.new_config_path, "tools.build.jobs=1")
         install_out = self._run_build(settings, options)
         self.assertIn("WARN: Toolchain: Ignoring fPIC option defined for Windows", install_out)
 
@@ -498,7 +498,7 @@ def test_msvc_vs_versiontoolset(version, vs_version):
                 }
     client = TestClient()
     save(client.cache.new_config_path,
-         "tools.microsoft.msbuild:vs_version={}".format(vs_version))
+         "tools.microsoft.msbuild.vs_version={}".format(vs_version))
     conanfile = textwrap.dedent("""
             from conans import ConanFile
             from conan.tools.cmake import CMake
@@ -696,7 +696,7 @@ class TestCMakeFindPackagePreferConfig:
         profile = textwrap.dedent("""
             include(default)
             [conf]
-            tools.cmake.cmaketoolchain:find_package_prefer_config={}
+            tools.cmake.cmaketoolchain.find_package_prefer_config={}
             """)
 
         client = TestClient()

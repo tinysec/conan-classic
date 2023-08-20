@@ -26,7 +26,7 @@ def test_apple_meson_keep_user_custom_flags():
     compiler.libcxx = libc++
 
     [conf]
-    tools.apple:sdk_path=/my/sdk/path
+    tools.apple.sdk_path=/my/sdk/path
     """)
 
     _conanfile_py = textwrap.dedent("""
@@ -75,10 +75,10 @@ def test_extra_flags_via_conf():
         LDFLAGS=-flag0 -other=val
 
         [conf]
-        tools.build:cxxflags=["-flag1", "-flag2"]
-        tools.build:cflags=["-flag3", "-flag4"]
-        tools.build:sharedlinkflags+=["-flag5"]
-        tools.build:exelinkflags+=["-flag6"]
+        tools.build.cxxflags=["-flag1", "-flag2"]
+        tools.build.cflags=["-flag3", "-flag4"]
+        tools.build.sharedlinkflags+=["-flag5"]
+        tools.build.exelinkflags+=["-flag6"]
    """)
     t = TestClient()
     t.save({"conanfile.txt": "[generators]\nMesonToolchain",
@@ -107,9 +107,9 @@ def test_linker_scripts_via_conf():
         LDFLAGS=-flag0 -other=val
 
         [conf]
-        tools.build:sharedlinkflags+=["-flag5"]
-        tools.build:exelinkflags+=["-flag6"]
-        tools.build:linker_scripts+=["/linker/scripts/flash.ld", "/linker/scripts/extra_data.ld"]
+        tools.build.sharedlinkflags+=["-flag5"]
+        tools.build.exelinkflags+=["-flag6"]
+        tools.build.linker_scripts+=["/linker/scripts/flash.ld", "/linker/scripts/extra_data.ld"]
    """)
     t = TestClient()
     t.save({"conanfile.txt": "[generators]\nMesonToolchain",

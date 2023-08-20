@@ -620,7 +620,7 @@ def test_msvc_visual_incompatible():
                '-s compiler.runtime=MD -s build_type=Release -s arch=x86_64')
     client.run("install pkg/0.1@ -pr=profile")
     assert "Using compatible package" in client.out
-    new_config = "core.package_id:msvc_visual_incompatible=1"
+    new_config = "core.package_id.msvc_visual_incompatible=1"
     save(client.cache.new_config_path, new_config)
     client.run("install pkg/0.1@ -pr=profile", assert_error=True)
     assert "ERROR: Missing prebuilt package for 'pkg/0.1'" in client.out

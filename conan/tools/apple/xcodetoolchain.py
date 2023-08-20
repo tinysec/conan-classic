@@ -42,11 +42,11 @@ class XcodeToolchain(object):
         self.sdk_version = conanfile.settings.get_safe("os.sdk_version")
         self.libcxx = conanfile.settings.get_safe("compiler.libcxx")
         self.os_version = conanfile.settings.get_safe("os.version")
-        self._global_defines = self._conanfile.conf.get("tools.build:defines", default=[], check_type=list)
-        self._global_cxxflags = self._conanfile.conf.get("tools.build:cxxflags", default=[], check_type=list)
-        self._global_cflags = self._conanfile.conf.get("tools.build:cflags", default=[], check_type=list)
-        sharedlinkflags = self._conanfile.conf.get("tools.build:sharedlinkflags", default=[], check_type=list)
-        exelinkflags = self._conanfile.conf.get("tools.build:exelinkflags", default=[], check_type=list)
+        self._global_defines = self._conanfile.conf.get("tools.build.defines", default=[], check_type=list)
+        self._global_cxxflags = self._conanfile.conf.get("tools.build.cxxflags", default=[], check_type=list)
+        self._global_cflags = self._conanfile.conf.get("tools.build.cflags", default=[], check_type=list)
+        sharedlinkflags = self._conanfile.conf.get("tools.build.sharedlinkflags", default=[], check_type=list)
+        exelinkflags = self._conanfile.conf.get("tools.build.exelinkflags", default=[], check_type=list)
         self._global_ldflags = sharedlinkflags + exelinkflags
         check_using_build_profile(self._conanfile)
 

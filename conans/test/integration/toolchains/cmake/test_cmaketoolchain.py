@@ -59,7 +59,7 @@ def test_cross_build_user_toolchain():
         arch=armv8
         build_type=Release
         [conf]
-        tools.cmake.cmaketoolchain:user_toolchain+=rpi_toolchain.cmake
+        tools.cmake.cmaketoolchain.user_toolchain+=rpi_toolchain.cmake
         """)
 
     client = TestClient(path_with_spaces=False)
@@ -178,9 +178,9 @@ def test_cross_build_conf():
         build_type=Release
 
         [conf]
-        tools.cmake.cmaketoolchain:system_name = Custom
-        tools.cmake.cmaketoolchain:system_version= 42
-        tools.cmake.cmaketoolchain:system_processor = myarm
+        tools.cmake.cmaketoolchain.system_name = Custom
+        tools.cmake.cmaketoolchain.system_version= 42
+        tools.cmake.cmaketoolchain.system_processor = myarm
         """)
 
     client = TestClient(path_with_spaces=False)
@@ -291,7 +291,7 @@ def test_cmaketoolchain_cmake_system_processor_cross_apple():
 @pytest.mark.skipif(platform.system() != "Darwin", reason="Only OSX")
 def test_apple_vars_overwrite_user_conf():
     """
-        tools.cmake.cmaketoolchain:system_name and tools.cmake.cmaketoolchain:system_version
+        tools.cmake.cmaketoolchain.system_name and tools.cmake.cmaketoolchain.system_version
         will be overwritten by the apple block
     """
     client = TestClient()
@@ -309,9 +309,9 @@ def test_apple_vars_overwrite_user_conf():
     """)
     client.save({"profile_ios": profile_ios})
     client.run("install hello.py -pr:h=./profile_ios -pr:b=default -g CMakeToolchain "
-               "-c tools.cmake.cmaketoolchain:system_name=tvOS "
-               "-c tools.cmake.cmaketoolchain:system_version=15.1 "
-               "-c tools.cmake.cmaketoolchain:system_processor=x86_64 ")
+               "-c tools.cmake.cmaketoolchain.system_name=tvOS "
+               "-c tools.cmake.cmaketoolchain.system_version=15.1 "
+               "-c tools.cmake.cmaketoolchain.system_processor=x86_64 ")
 
     toolchain = client.load("conan_toolchain.cmake")
 
@@ -335,11 +335,11 @@ def test_extra_flags_via_conf():
         build_type=Release
 
         [conf]
-        tools.build:cxxflags=["--flag1", "--flag2"]
-        tools.build:cflags+=["--flag3", "--flag4"]
-        tools.build:sharedlinkflags=+["--flag5", "--flag6"]
-        tools.build:exelinkflags=["--flag7", "--flag8"]
-        tools.build:defines=["D1", "D2"]
+        tools.build.cxxflags=["--flag1", "--flag2"]
+        tools.build.cflags+=["--flag3", "--flag4"]
+        tools.build.sharedlinkflags=+["--flag5", "--flag6"]
+        tools.build.exelinkflags=["--flag7", "--flag8"]
+        tools.build.defines=["D1", "D2"]
         """)
 
     client = TestClient(path_with_spaces=False)
@@ -523,8 +523,8 @@ def test_toolchain_cache_variables():
         """)
     client.save({"conanfile.py": conanfile})
     with mock.patch("platform.system", mock.MagicMock(return_value="Windows")):
-        client.run("install . mylib/1.0@ -c tools.cmake.cmaketoolchain:generator='MinGW Makefiles' "
-                   "-c tools.gnu:make_program='MyMake' -c tools.build:skip_test=True")
+        client.run("install . mylib/1.0@ -c tools.cmake.cmaketoolchain.generator='MinGW Makefiles' "
+                   "-c tools.gnu.make_program='MyMake' -c tools.build.skip_test=True")
     presets = json.loads(client.load("CMakePresets.json"))
     cache_variables = presets["configurePresets"][0]["cacheVariables"]
     assert cache_variables["foo"] == 'ON'
@@ -562,7 +562,7 @@ def test_android_c_library():
         """)
     client.save({"conanfile.py": conanfile})
     # Settings
-    settings = "-s arch=x86_64 -s os=Android -s os.api_level=23 -c tools.android:ndk_path=/foo"
+    settings = "-s arch=x86_64 -s os=Android -s os.api_level=23 -c tools.android.ndk_path=/foo"
     # Checking the Android variables created
     # Issue: https://github.com/conan-io/conan/issues/11798
     client.run("install . " + settings)
@@ -590,9 +590,9 @@ def test_user_presets_version2():
 
             """)
     client.save({"conanfile.py": conanfile, "CMakeLists.txt": "foo"})
-    configs = ["-c tools.cmake.cmaketoolchain:generator=Ninja",
-               "-c tools.cmake.cmaketoolchain.presets:max_schema_version=2 ",
-               "-c tools.cmake.cmake_layout:build_folder_vars='[\"settings.compiler.cppstd\"]'"]
+    configs = ["-c tools.cmake.cmaketoolchain.generator=Ninja",
+               "-c tools.cmake.cmaketoolchain.presets.max_schema_version=2 ",
+               "-c tools.cmake.cmake_layout.build_folder_vars='[\"settings.compiler.cppstd\"]'"]
     client.run("install . {} -s compiler.cppstd=14".format(" ".join(configs)))
     client.run("install . {} -s compiler.cppstd=17".format(" ".join(configs)))
 
@@ -626,8 +626,8 @@ def test_user_presets_version2_no_overwrite_user():
             """)
     client.save({"conanfile.py": conanfile, "CMakeLists.txt": "foo",
                  "CMakeUserPresets.json": '{"from_user": 1}'})
-    configs = ["-c tools.cmake.cmaketoolchain.presets:max_schema_version=2 ",
-               "-c tools.cmake.cmake_layout:build_folder_vars='[\"settings.compiler.cppstd\"]'"]
+    configs = ["-c tools.cmake.cmaketoolchain.presets.max_schema_version=2 ",
+               "-c tools.cmake.cmake_layout.build_folder_vars='[\"settings.compiler.cppstd\"]'"]
     client.run("install . {} -s compiler.cppstd=14".format(" ".join(configs)))
 
     presets = json.loads(client.load("CMakeUserPresets.json"))
@@ -649,8 +649,8 @@ def test_presets_paths_correct():
                     cmake_layout(self)
             """)
     client.save({"conanfile.py": conanfile, "CMakeLists.txt": "foo"})
-    configs = ["-c tools.cmake.cmaketoolchain.presets:max_schema_version=2 ",
-               "-c tools.cmake.cmake_layout:build_folder_vars='[\"settings.compiler.cppstd\"]'"]
+    configs = ["-c tools.cmake.cmaketoolchain.presets.max_schema_version=2 ",
+               "-c tools.cmake.cmake_layout.build_folder_vars='[\"settings.compiler.cppstd\"]'"]
     client.run("install . {} -s compiler.cppstd=14".format(" ".join(configs)))
     client.run("install . {} -s compiler.cppstd=17".format(" ".join(configs)))
 
@@ -704,8 +704,8 @@ def test_presets_updated():
                     cmake_layout(self)
             """)
     client.save({"conanfile.py": conanfile, "CMakeLists.txt": "foo"})
-    configs = ["-c tools.cmake.cmaketoolchain.presets:max_schema_version=2 ",
-               "-c tools.cmake.cmake_layout:build_folder_vars='[\"settings.compiler.cppstd\"]'"]
+    configs = ["-c tools.cmake.cmaketoolchain.presets.max_schema_version=2 ",
+               "-c tools.cmake.cmake_layout.build_folder_vars='[\"settings.compiler.cppstd\"]'"]
     client.run("install . {} -s compiler.cppstd=14".format(" ".join(configs)))
     client.run("install . {} -s compiler.cppstd=17".format(" ".join(configs)))
 
@@ -752,9 +752,9 @@ def test_presets_ninja_msvc(arch, arch_toolset):
                     cmake_layout(self)
             """)
     client.save({"conanfile.py": conanfile, "CMakeLists.txt": "foo"})
-    configs = ["-c tools.cmake.cmaketoolchain:toolset_arch={}".format(arch_toolset),
-               "-c tools.cmake.cmake_layout:build_folder_vars='[\"settings.compiler.cppstd\"]'",
-               "-c tools.cmake.cmaketoolchain:generator=Ninja"]
+    configs = ["-c tools.cmake.cmaketoolchain.toolset_arch={}".format(arch_toolset),
+               "-c tools.cmake.cmake_layout.build_folder_vars='[\"settings.compiler.cppstd\"]'",
+               "-c tools.cmake.cmaketoolchain.generator=Ninja"]
     msvc = " -s compiler=msvc -s compiler.version=191 -s compiler.runtime=static " \
            "-s compiler.runtime_type=Release"
     client.run("install . {} -s compiler.cppstd=14 {} -s arch={}".format(" ".join(configs), msvc, arch))
@@ -771,8 +771,8 @@ def test_presets_ninja_msvc(arch, arch_toolset):
 
     # Only for Ninja, no ninja, no values
     rmdir(os.path.join(client.current_folder, "build"))
-    configs = ["-c tools.cmake.cmaketoolchain:toolset_arch={}".format(arch_toolset),
-               "-c tools.cmake.cmake_layout:build_folder_vars='[\"settings.compiler.cppstd\"]'"]
+    configs = ["-c tools.cmake.cmaketoolchain.toolset_arch={}".format(arch_toolset),
+               "-c tools.cmake.cmake_layout.build_folder_vars='[\"settings.compiler.cppstd\"]'"]
     client.run(
         "install . {} -s compiler.cppstd=14 {} -s arch={}".format(" ".join(configs), msvc, arch))
 
@@ -782,8 +782,8 @@ def test_presets_ninja_msvc(arch, arch_toolset):
 
     # No toolset defined in conf, no value
     rmdir(os.path.join(client.current_folder, "build"))
-    configs = ["-c tools.cmake.cmake_layout:build_folder_vars='[\"settings.compiler.cppstd\"]'",
-               "-c tools.cmake.cmaketoolchain:generator=Ninja"]
+    configs = ["-c tools.cmake.cmake_layout.build_folder_vars='[\"settings.compiler.cppstd\"]'",
+               "-c tools.cmake.cmaketoolchain.generator=Ninja"]
 
     client.run(
         "install . {} -s compiler.cppstd=14 {} -s arch={}".format(" ".join(configs), msvc, arch))
@@ -801,7 +801,7 @@ def test_pkg_config_block():
         arch=x86_64
 
         [conf]
-        tools.gnu:pkg_config=/usr/local/bin/pkg-config
+        tools.gnu.pkg_config=/usr/local/bin/pkg-config
         """ % os_)
 
     client = TestClient(path_with_spaces=False)
@@ -862,7 +862,7 @@ def test_set_cmake_lang_compilers_and_launchers():
     compiler.version=15
     compiler.libcxx=libstdc++11
     [conf]
-    tools.build:compiler_executables={"c": "/my/local/gcc", "cpp": "g++", "rc": "C:\\local\\rc.exe"}
+    tools.build.compiler_executables={"c": "/my/local/gcc", "cpp": "g++", "rc": "C:\\local\\rc.exe"}
     """)
     client = TestClient(path_with_spaces=False)
     conanfile = GenConanfile().with_settings("os", "arch", "compiler")\
@@ -905,12 +905,12 @@ def test_cmake_layout_toolchain_folder():
                                        "build/Debug/generators/conan_toolchain.cmake"))
     c.run("install . -s os=Linux -s compiler=gcc -s compiler.version=7 -s build_type=Debug "
           "-s compiler.libcxx=libstdc++11 -s arch=x86 "
-          "-c tools.cmake.cmake_layout:build_folder_vars='[\"settings.arch\", \"settings.build_type\"]'")
+          "-c tools.cmake.cmake_layout.build_folder_vars='[\"settings.arch\", \"settings.build_type\"]'")
     assert os.path.exists(os.path.join(c.current_folder,
                                        "build/x86-debug/generators/conan_toolchain.cmake"))
     c.run("install . -s os=Linux -s compiler=gcc -s compiler.version=7 -s build_type=Debug "
           "-s compiler.libcxx=libstdc++11 -s arch=x86 "
-          "-c tools.cmake.cmake_layout:build_folder_vars='[\"settings.os\"]'")
+          "-c tools.cmake.cmake_layout.build_folder_vars='[\"settings.os\"]'")
     assert os.path.exists(os.path.join(c.current_folder,
                                        "build/linux/Debug/generators/conan_toolchain.cmake"))
 
@@ -924,7 +924,7 @@ def test_set_linker_scripts():
     compiler.version=15
     compiler.libcxx=libstdc++11
     [conf]
-    tools.build:linker_scripts=["/usr/local/src/flash.ld", "C:\\local\\extra_data.ld"]
+    tools.build.linker_scripts=["/usr/local/src/flash.ld", "C:\\local\\extra_data.ld"]
     """)
     client = TestClient(path_with_spaces=False)
     conanfile = GenConanfile().with_settings("os", "arch", "compiler")\
@@ -962,7 +962,7 @@ def test_test_package_layout():
     """)
     client.save({"conanfile.py": GenConanfile("pkg", "0.1"),
                  "test_package/conanfile.py": test_conanfile})
-    config = "-c tools.cmake.cmake_layout:build_folder_vars='[\"settings.compiler.cppstd\"]'"
+    config = "-c tools.cmake.cmake_layout.build_folder_vars='[\"settings.compiler.cppstd\"]'"
     client.run(f"create . {config} -s compiler.cppstd=14")
     client.run(f"create . {config} -s compiler.cppstd=17")
     assert os.path.exists(os.path.join(client.current_folder, "test_package/build/14"))
