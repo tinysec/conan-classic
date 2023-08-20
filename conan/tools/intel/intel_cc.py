@@ -87,10 +87,10 @@ class IntelCC:
     @property
     def installation_path(self):
         """Get the Intel oneAPI installation root path"""
-        installation_path = self._conanfile.conf.get("tools.intel:installation_path")
+        installation_path = self._conanfile.conf.get("tools.intel.installation_path")
         if not installation_path:
             raise ConanException("To use Intel oneAPI, specify a [conf] entry "
-                                 "'tools.intel:installation_path' containing the path to the "
+                                 "'tools.intel.installation_path' containing the path to the "
                                  "installation folder.")
         self._out.info("Got Intel oneAPI installation folder: %s" % installation_path)
         return installation_path
@@ -126,7 +126,7 @@ class IntelCC:
         :return: `str` setvars.sh|bat command to be run
         """
         # Let's check if user wants to use some custom arguments to run the setvars script
-        command_args = self._conanfile.conf.get("tools.intel:setvars_args", default="")
+        command_args = self._conanfile.conf.get("tools.intel.setvars_args", default="")
         system = platform.system()
         svars = "setvars.bat" if system == "Windows" else "setvars.sh"
         command = '"%s"' % os.path.join(self.installation_path, svars)

@@ -77,7 +77,7 @@ class VCVars:
         if compiler not in ("Visual Studio", "msvc", "clang"):
             return
 
-        vs_install_path = conanfile.conf.get("tools.microsoft.msbuild:installation_path")
+        vs_install_path = conanfile.conf.get("tools.microsoft.msbuild.installation_path")
         if vs_install_path == "":  # Empty string means "disable"
             return
 
@@ -126,7 +126,7 @@ def vs_ide_version(conanfile):
     compiler_version = (conanfile.settings.get_safe("compiler.base.version") or
                         conanfile.settings.get_safe("compiler.version"))
     if compiler == "msvc":
-        toolset_override = conanfile.conf.get("tools.microsoft.msbuild:vs_version", check_type=str)
+        toolset_override = conanfile.conf.get("tools.microsoft.msbuild.vs_version", check_type=str)
         if toolset_override:
             visual_version = toolset_override
         else:

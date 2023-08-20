@@ -261,7 +261,7 @@ def test_autotools_option_checking():
 
         class MylibTestConan(ConanFile):
             settings = "os", "compiler", "build_type", "arch"
-            # VirtualBuildEnv and VirtualRunEnv can be avoided if "tools.env.virtualenv:auto_use" is defined
+            # VirtualBuildEnv and VirtualRunEnv can be avoided if "tools.env.virtualenv.auto_use" is defined
             # (it will be defined in Conan 2.0)
             generators = "AutotoolsDeps", "VirtualBuildEnv", "VirtualRunEnv"
             apply_env = False

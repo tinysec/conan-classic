@@ -139,7 +139,7 @@ def test_compilers_mapping():
                              "arch": "x86_64"})
     conanfile = ConanFileMock()
     conanfile.conf = Conf()
-    conanfile.conf.define("tools.build:compiler_executables", compilers)
+    conanfile.conf.define("tools.build.compiler_executables", compilers)
     conanfile.settings = settings
     autotoolschain = AutotoolsToolchain(conanfile)
     env = autotoolschain.environment().vars(conanfile)
@@ -150,7 +150,7 @@ def test_compilers_mapping():
 def test_linker_scripts():
     conanfile = ConanFileMock()
     conanfile.conf = Conf()
-    conanfile.conf.define("tools.build:linker_scripts", ["path_to_first_linker_script", "path_to_second_linker_script"])
+    conanfile.conf.define("tools.build.linker_scripts", ["path_to_first_linker_script", "path_to_second_linker_script"])
     settings = MockSettings({"build_type": "Release",
                              "os": "Windows",
                              "arch": "x86_64"})

@@ -290,7 +290,7 @@ def test_apple_own_framework_cmake_deps():
     profile = textwrap.dedent("""
         include(default)
         [conf]
-        tools.cmake.cmaketoolchain:generator=Xcode
+        tools.cmake.cmaketoolchain.generator=Xcode
         """)
     client.save({"conanfile.py": test_conanfile,
                  'CMakeLists.txt': test_cmake,

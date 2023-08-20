@@ -676,7 +676,7 @@ def test_exclude_code_analysis(pattern, exclude_a, exclude_b):
         build_type=Release
         arch=x86_64
         [conf]
-        tools.microsoft.msbuilddeps:exclude_code_analysis = %s
+        tools.microsoft.msbuilddeps.exclude_code_analysis = %s
         """ % pattern)
 
     client.save({"conanfile.py": conanfile,

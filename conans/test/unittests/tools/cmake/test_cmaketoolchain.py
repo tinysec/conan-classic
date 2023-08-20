@@ -29,7 +29,7 @@ def conanfile():
     c.settings.compiler.libcxx = "libstdc++"
     c.settings.os = "Windows"
     c.conf = Conf()
-    c.conf.define("tools.cmake.cmaketoolchain:system_name", "potato")
+    c.conf.define("tools.cmake.cmaketoolchain.system_name", "potato")
     c.folders.set_base_generators(".")
     c._conan_node = Mock()
     c._conan_node.dependencies = []
@@ -187,7 +187,7 @@ def test_toolset(conanfile_msvc):
 
 def test_toolset_x64(conanfile_msvc):
     # https://github.com/conan-io/conan/issues/11144
-    conanfile_msvc.conf.define("tools.cmake.cmaketoolchain:toolset_arch", "x64")
+    conanfile_msvc.conf.define("tools.cmake.cmaketoolchain.toolset_arch", "x64")
     toolchain = CMakeToolchain(conanfile_msvc)
     assert 'set(CMAKE_GENERATOR_TOOLSET "v143,host=x64" CACHE STRING "" FORCE)' in toolchain.content
     assert 'Visual Studio 17 2022' in toolchain.generator
@@ -409,7 +409,7 @@ def test_libcxx_abi_flag():
     assert '_GLIBCXX_USE_CXX11_ABI=1' in content
 
     # but maybe the conf is better
-    c.conf["tools.gnu:define_libcxx11_abi"] = True
+    c.conf["tools.gnu.define_libcxx11_abi"] = True
     toolchain = CMakeToolchain(c)
     content = toolchain.content
     assert '_GLIBCXX_USE_CXX11_ABI=1' in content
@@ -500,7 +500,7 @@ def test_compilers_block(conanfile):
                  "objc": "path_to_objc", "objcpp": "path_to_objcpp", "rc": "path_to_rc",
                  'fortran': "path_to_fortran", 'asm': "path_to_asm", "hip": "path_to_hip",
                  "ispc": "path_to_ispc"}
-    conanfile.conf.define("tools.build:compiler_executables", compilers)
+    conanfile.conf.define("tools.build.compiler_executables", compilers)
     toolchain = CMakeToolchain(conanfile)
     content = toolchain.content
     for compiler, lang in cmake_mapping.items():
@@ -508,7 +508,7 @@ def test_compilers_block(conanfile):
 
 
 def test_linker_scripts_block(conanfile):
-    conanfile.conf.define("tools.build:linker_scripts", ["path_to_first_linker_script", "path_to_second_linker_script"])
+    conanfile.conf.define("tools.build.linker_scripts", ["path_to_first_linker_script", "path_to_second_linker_script"])
     toolchain = CMakeToolchain(conanfile)
     content = toolchain.content
     assert f'string(APPEND CONAN_EXE_LINKER_FLAGS -T"path_to_first_linker_script" -T"path_to_second_linker_script")' in content

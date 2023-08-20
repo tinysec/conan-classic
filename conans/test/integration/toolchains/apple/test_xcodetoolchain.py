@@ -59,11 +59,11 @@ def test_toolchain_files(configuration, os_version, cppstd, libcxx, arch, sdk_na
 def test_toolchain_flags():
     client = TestClient()
     client.save({"conanfile.txt": "[generators]\nXcodeToolchain\n"})
-    cmd = "install . -c 'tools.build:cxxflags=[\"flag1\"]' " \
-          "-c 'tools.build:defines=[\"MYDEFINITION\"]' " \
-          "-c 'tools.build:cflags=[\"flag2\"]' " \
-          "-c 'tools.build:sharedlinkflags=[\"flag3\"]' " \
-          "-c 'tools.build:exelinkflags=[\"flag4\"]'"
+    cmd = "install . -c 'tools.build.cxxflags=[\"flag1\"]' " \
+          "-c 'tools.build.defines=[\"MYDEFINITION\"]' " \
+          "-c 'tools.build.cflags=[\"flag2\"]' " \
+          "-c 'tools.build.sharedlinkflags=[\"flag3\"]' " \
+          "-c 'tools.build.exelinkflags=[\"flag4\"]'"
     client.run(cmd)
     conan_global_flags = client.load("conan_global_flags.xcconfig")
     assert "GCC_PREPROCESSOR_DEFINITIONS = $(inherited) MYDEFINITION" in conan_global_flags

@@ -71,8 +71,8 @@ class TestConanToolFiles:
 
         profile = textwrap.dedent("""\
             [conf]
-            tools.files.download:retry=1
-            tools.files.download:retry_wait=0
+            tools.files.download.retry=1
+            tools.files.download.retry_wait=0
             """)
 
         conanfile = textwrap.dedent("""

@@ -11,13 +11,13 @@ class BazelToolchain(object):
 
     def generate(self):
         content = {}
-        configs = ",".join(self._conanfile.conf.get("tools.google.bazel:configs",
+        configs = ",".join(self._conanfile.conf.get("tools.google.bazel.configs",
                                                     default=[],
                                                     check_type=list))
         if configs:
             content["bazel_configs"] = configs
 
-        bazelrc = self._conanfile.conf.get("tools.google.bazel:bazelrc_path")
+        bazelrc = self._conanfile.conf.get("tools.google.bazel.bazelrc_path")
         if bazelrc:
             content["bazelrc_path"] = bazelrc
 

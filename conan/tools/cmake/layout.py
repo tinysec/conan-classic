@@ -4,7 +4,7 @@ from conans.errors import ConanException
 
 
 def cmake_layout(conanfile, generator=None, src_folder=".", build_folder="build"):
-    gen = conanfile.conf.get("tools.cmake.cmaketoolchain:generator", default=generator)
+    gen = conanfile.conf.get("tools.cmake.cmaketoolchain.generator", default=generator)
     if gen:
         multi = "Visual" in gen or "Xcode" in gen or "Multi-Config" in gen
     else:
@@ -43,7 +43,7 @@ def cmake_layout(conanfile, generator=None, src_folder=".", build_folder="build"
 
 def get_build_folder_custom_vars(conanfile):
 
-    build_vars = conanfile.conf.get("tools.cmake.cmake_layout:build_folder_vars",
+    build_vars = conanfile.conf.get("tools.cmake.cmake_layout.build_folder_vars",
                                     default=[], check_type=list)
     ret = []
     for s in build_vars:
@@ -56,7 +56,7 @@ def get_build_folder_custom_vars(conanfile):
             if value is not None:
                 tmp = "{}_{}".format(var, value)
         else:
-            raise ConanException("Invalid 'tools.cmake.cmake_layout:build_folder_vars' value, it has"
+            raise ConanException("Invalid 'tools.cmake.cmake_layout.build_folder_vars' value, it has"
                                  " to start with 'settings.' or 'options.': {}".format(s))
         if tmp:
             ret.append(tmp.lower())

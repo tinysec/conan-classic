@@ -24,8 +24,8 @@ def test_toolchain_loads_config_from_profile():
     profile = textwrap.dedent("""
     include(default)
     [conf]
-    tools.google.bazel:configs=["test_config", "test_config2"]
-    tools.google.bazel:bazelrc_path=/path/to/bazelrc
+    tools.google.bazel.configs=["test_config", "test_config2"]
+    tools.google.bazel.bazelrc_path=/path/to/bazelrc
     """)
 
     conanfile = GenConanfile().with_settings("os", "compiler", "build_type", "arch").\

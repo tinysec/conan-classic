@@ -28,7 +28,7 @@ class Meson(object):
         if os.path.exists(deps_flags):
             meson_filenames.append(deps_flags)
 
-        machine_files = self._conanfile.conf.get("tools.meson.mesontoolchain:extra_machine_files",
+        machine_files = self._conanfile.conf.get("tools.meson.mesontoolchain.extra_machine_files",
                                                  default=[], check_type=list)
         if machine_files:
             meson_filenames.extend(machine_files)
@@ -60,7 +60,7 @@ class Meson(object):
         self._conanfile.run(cmd)
 
     def test(self):
-        if self._conanfile.conf.get("tools.build:skip_test"):
+        if self._conanfile.conf.get("tools.build.skip_test"):
             return
         meson_build_folder = self._conanfile.build_folder
         cmd = 'meson test -v -C "{}"'.format(meson_build_folder)

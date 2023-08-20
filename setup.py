@@ -46,7 +46,7 @@ def load_version():
 
 def generate_long_description_file():
     this_directory = path.abspath(path.dirname(__file__))
-    with open(path.join(this_directory, 'README.rst')) as f:
+    with open(path.join(this_directory, 'README.md')) as f:
         long_description = f.read()
     return long_description
 
@@ -58,16 +58,16 @@ setup(
     # https://packaging.python.org/en/latest/single_source_version.html
     version=load_version(),  # + ".rc1",
 
-    description='Conan C/C++ package manager',
+    description='Conan(classic mode) C/C++ package manager',
     long_description=generate_long_description_file(),
     long_description_content_type='text/x-rst',
 
     # The project's main homepage.
-    url='https://conan.io',
+    url='https://github.com/tinysec/conan-classic',
     project_urls={
         'Documentation': 'https://docs.conan.io',
-        'Source': 'https://github.com/conan-io/conan',
-        'Tracker': 'https://github.com/conan-io/conan/issues',
+        'Source': 'https://github.com/tinysec/conan-classic',
+        'Tracker': 'https://github.com/tinysec/conan-classic/issues',
     },
 
     # Author details

@@ -18,9 +18,9 @@ def test_autotools_bash_complete():
     client = TestClient(path_with_spaces=False)
     bash_path = tools_locations["msys2"]["system"]["path"]["Windows"] + "/bash.exe"
     save(client.cache.new_config_path, textwrap.dedent("""
-            tools.microsoft.bash:subsystem=msys2
-            tools.microsoft.bash:path={}
-            tools.build:compiler_executables={{"c": "cl", "cpp": "cl"}}
+            tools.microsoft.bash.subsystem=msys2
+            tools.microsoft.bash.path={}
+            tools.build.compiler_executables={{"c": "cl", "cpp": "cl"}}
             """.format(bash_path)))
 
     main = gen_function_cpp(name="main")
@@ -84,8 +84,8 @@ def test_add_msys2_path_automatically():
         pytest.skip("msys2 path not defined")
 
     save(client.cache.new_config_path, textwrap.dedent("""
-            tools.microsoft.bash:subsystem=msys2
-            tools.microsoft.bash:path={}
+            tools.microsoft.bash.subsystem=msys2
+            tools.microsoft.bash.path={}
             """.format(bash_path)))
 
     conanfile = textwrap.dedent("""

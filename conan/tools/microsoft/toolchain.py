@@ -118,7 +118,7 @@ class MSBuildToolchain(object):
         cppstd = "stdcpp%s" % self.cppstd if self.cppstd else ""
         runtime_library = self.runtime_library
         toolset = self.toolset or ""
-        compile_options = self._conanfile.conf.get("tools.microsoft.msbuildtoolchain:compile_options",
+        compile_options = self._conanfile.conf.get("tools.microsoft.msbuildtoolchain.compile_options",
                                                    default={}, check_type=dict)
         self.compile_options.update(compile_options)
         parallel = ""
@@ -193,9 +193,9 @@ class MSBuildToolchain(object):
 
     def _get_extra_flags(self):
         # Now, it's time to get all the flags defined by the user
-        cxxflags = self._conanfile.conf.get("tools.build:cxxflags", default=[], check_type=list)
-        cflags = self._conanfile.conf.get("tools.build:cflags", default=[], check_type=list)
-        sharedlinkflags = self._conanfile.conf.get("tools.build:sharedlinkflags", default=[], check_type=list)
-        exelinkflags = self._conanfile.conf.get("tools.build:exelinkflags", default=[], check_type=list)
-        defines = self._conanfile.conf.get("tools.build:defines", default=[], check_type=list)
+        cxxflags = self._conanfile.conf.get("tools.build.cxxflags", default=[], check_type=list)
+        cflags = self._conanfile.conf.get("tools.build.cflags", default=[], check_type=list)
+        sharedlinkflags = self._conanfile.conf.get("tools.build.sharedlinkflags", default=[], check_type=list)
+        exelinkflags = self._conanfile.conf.get("tools.build.exelinkflags", default=[], check_type=list)
+        defines = self._conanfile.conf.get("tools.build.defines", default=[], check_type=list)
         return cxxflags, cflags, defines, sharedlinkflags, exelinkflags

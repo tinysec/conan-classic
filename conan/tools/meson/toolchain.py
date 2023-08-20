@@ -93,7 +93,7 @@ class MesonToolchain(object):
         # Values are kept as Python built-ins so users can modify them more easily, and they are
         # only converted to Meson file syntax for rendering
         # priority: first user conf, then recipe, last one is default "ninja"
-        self._backend = conanfile.conf.get("tools.meson.mesontoolchain:backend",
+        self._backend = conanfile.conf.get("tools.meson.mesontoolchain.backend",
                                            default=backend or 'ninja')
         build_type = self._conanfile.settings.get_safe("build_type")
         self._buildtype = {"Debug": "debug",  # Note, it is not "'debug'"
@@ -166,13 +166,13 @@ class MesonToolchain(object):
                 default_comp_cpp = "g++"
 
         # Read configuration for compilers
-        compilers_by_conf = self._conanfile.conf.get("tools.build:compiler_executables", default={},
+        compilers_by_conf = self._conanfile.conf.get("tools.build.compiler_executables", default={},
                                                      check_type=dict)
         # Read the VirtualBuildEnv to update the variables
         build_env = VirtualBuildEnv(self._conanfile).vars()
         self.c = compilers_by_conf.get("c") or build_env.get("CC") or default_comp
         self.cpp = compilers_by_conf.get("cpp") or build_env.get("CXX") or default_comp_cpp
-        # FIXME: Should we use the new tools.build:compiler_executables and avoid buildenv?
+        #  Should we use the new tools.build.compiler_executables and avoid buildenv?
         self.c_ld = build_env.get("CC_LD") or build_env.get("LD")
         self.cpp_ld = build_env.get("CXX_LD") or build_env.get("LD")
         self.ar = build_env.get("AR")
@@ -243,7 +243,7 @@ class MesonToolchain(object):
         if not sdk_path and self.cross_build:
             raise ConanException(
                 "Apple SDK path not found. For cross-compilation, you must "
-                "provide a valid SDK path in 'tools.apple:sdk_path' config."
+                "provide a valid SDK path in 'tools.apple.sdk_path' config."
             )
 
         # TODO: Delete this os_sdk check whenever the _guess_apple_sdk_name() function disappears
@@ -268,9 +268,9 @@ class MesonToolchain(object):
         if not self.cross_build or not self.cross_build["host"]["system"] == "android":
             return
 
-        ndk_path = self._conanfile.conf.get("tools.android:ndk_path")
+        ndk_path = self._conanfile.conf.get("tools.android.ndk_path")
         if not ndk_path:
-            raise ConanException("You must provide a NDK path. Use 'tools.android:ndk_path' "
+            raise ConanException("You must provide a NDK path. Use 'tools.android.ndk_path' "
                                  "configuration field.")
 
         arch = self._conanfile.settings.get_safe("arch")
@@ -287,11 +287,11 @@ class MesonToolchain(object):
 
     def _get_extra_flags(self):
         # Now, it's time to get all the flags defined by the user
-        cxxflags = self._conanfile.conf.get("tools.build:cxxflags", default=[], check_type=list)
-        cflags = self._conanfile.conf.get("tools.build:cflags", default=[], check_type=list)
-        sharedlinkflags = self._conanfile.conf.get("tools.build:sharedlinkflags", default=[], check_type=list)
-        exelinkflags = self._conanfile.conf.get("tools.build:exelinkflags", default=[], check_type=list)
-        linker_scripts = self._conanfile.conf.get("tools.build:linker_scripts", default=[], check_type=list)
+        cxxflags = self._conanfile.conf.get("tools.build.cxxflags", default=[], check_type=list)
+        cflags = self._conanfile.conf.get("tools.build.cflags", default=[], check_type=list)
+        sharedlinkflags = self._conanfile.conf.get("tools.build.sharedlinkflags", default=[], check_type=list)
+        exelinkflags = self._conanfile.conf.get("tools.build.exelinkflags", default=[], check_type=list)
+        linker_scripts = self._conanfile.conf.get("tools.build.linker_scripts", default=[], check_type=list)
         linker_script_flags = ['-T"' + linker_script + '"' for linker_script in linker_scripts]
         return {
             "cxxflags": cxxflags,

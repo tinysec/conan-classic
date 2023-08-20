@@ -120,7 +120,7 @@ def test_installation_path_in_conf():
     fake_path = "mysuper/path/to/intel/oneapi"
     conanfile.conf = ConfDefinition()
     conanfile.conf.loads(textwrap.dedent("""\
-        tools.intel:installation_path=%s
+        tools.intel.installation_path=%s
     """ % fake_path))
     assert IntelCC(conanfile).installation_path == fake_path
 
@@ -142,8 +142,8 @@ def test_setvars_command_with_custom_arguments(platform_system, os_, call_comman
     args = "arg1 arg2 --force"
     conanfile.conf = ConfDefinition()
     conanfile.conf.loads(textwrap.dedent("""\
-        tools.intel:installation_path=%s
-        tools.intel:setvars_args=%s
+        tools.intel.installation_path=%s
+        tools.intel.setvars_args=%s
     """ % (fake_path, args)))
     expected = '%s "%s" %s' % (call_command, os.path.join(fake_path, setvars_file), args)
     assert IntelCC(conanfile).command == expected

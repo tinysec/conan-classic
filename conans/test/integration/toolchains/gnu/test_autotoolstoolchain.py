@@ -21,11 +21,11 @@ def test_extra_flags_via_conf():
         build_type=Release
 
         [conf]
-        tools.build:cxxflags=["--flag1", "--flag2"]
-        tools.build:cflags+=["--flag3", "--flag4"]
-        tools.build:sharedlinkflags+=["--flag5"]
-        tools.build:exelinkflags+=["--flag6"]
-        tools.build:defines+=["DEF1", "DEF2"]
+        tools.build.cxxflags=["--flag1", "--flag2"]
+        tools.build.cflags+=["--flag3", "--flag4"]
+        tools.build.sharedlinkflags+=["--flag5"]
+        tools.build.exelinkflags+=["--flag6"]
+        tools.build.defines+=["DEF1", "DEF2"]
         """ % os_)
     client = TestClient()
     conanfile = GenConanfile().with_settings("os", "arch", "compiler", "build_type")\
@@ -60,9 +60,9 @@ def test_linker_scripts_via_conf():
         build_type=Release
 
         [conf]
-        tools.build:sharedlinkflags+=["--flag5"]
-        tools.build:exelinkflags+=["--flag6"]
-        tools.build:linker_scripts+=["/linker/scripts/flash.ld", "/linker/scripts/extra_data.ld"]
+        tools.build.sharedlinkflags+=["--flag5"]
+        tools.build.exelinkflags+=["--flag6"]
+        tools.build.linker_scripts+=["/linker/scripts/flash.ld", "/linker/scripts/extra_data.ld"]
         """ % os_)
     client = TestClient()
     conanfile = GenConanfile().with_settings("os", "arch", "compiler", "build_type")\

@@ -27,8 +27,8 @@ def test_bazel_namespace():
     profile = textwrap.dedent("""
     include(default)
     [conf]
-    tools.google.bazel:configs=["test_config"]
-    tools.google.bazel:bazelrc_path=/path/to/bazelrc
+    tools.google.bazel.configs=["test_config"]
+    tools.google.bazel.bazelrc_path=/path/to/bazelrc
     """)
 
     client.save({"test_profile": profile})
@@ -110,8 +110,8 @@ def test_multiple_toolchains_one_recipe():
     profile = textwrap.dedent("""
     include(default)
     [conf]
-    tools.google.bazel:configs=["test_config"]
-    tools.google.bazel:bazelrc_path=/path/to/bazelrc
+    tools.google.bazel.configs=["test_config"]
+    tools.google.bazel.bazelrc_path=/path/to/bazelrc
     """)
 
     client.save({"test_profile": profile})

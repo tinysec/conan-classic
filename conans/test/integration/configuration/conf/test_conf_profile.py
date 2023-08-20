@@ -53,7 +53,7 @@ def test_cmake_config(client):
         compiler.runtime=MD
         build_type=Release
         [conf]
-        tools.microsoft.msbuild:verbosity=Minimal
+        tools.microsoft.msbuild.verbosity=Minimal
         """)
     client.save({"myprofile": profile})
     client.run("create . pkg/0.1@ -pr=myprofile")
@@ -70,7 +70,7 @@ def test_cmake_config_error(client):
         compiler.runtime=MD
         build_type=Release
         [conf]
-        tools.microsoft.msbuild:verbosity=non-existing
+        tools.microsoft.msbuild.verbosity=non-existing
         """)
     client.save({"myprofile": profile})
     client.run("create . pkg/0.1@ -pr=myprofile", assert_error=True)
@@ -87,7 +87,7 @@ def test_cmake_config_package(client):
         compiler.runtime=MD
         build_type=Release
         [conf]
-        dep*:tools.microsoft.msbuild:verbosity=Minimal
+        dep*:tools.microsoft.msbuild.verbosity=Minimal
         """)
     client.save({"myprofile": profile})
     client.run("create . pkg/0.1@ -pr=myprofile")
@@ -129,7 +129,7 @@ def test_msbuild_config():
         compiler.runtime=MD
         build_type=Release
         [conf]
-        tools.microsoft.msbuild:verbosity=Minimal
+        tools.microsoft.msbuild.verbosity=Minimal
         """)
     client.save({"myprofile": profile})
     client.run("create . pkg/0.1@ -pr=myprofile")
@@ -158,7 +158,7 @@ def test_msbuild_compile_options():
         compiler.runtime=MD
         build_type=Release
         [conf]
-        tools.microsoft.msbuildtoolchain:compile_options={"ExceptionHandling": "Async"}
+        tools.microsoft.msbuildtoolchain.compile_options={"ExceptionHandling": "Async"}
         """)
     client.save({"myprofile": profile})
     client.run("install . -pr=myprofile")

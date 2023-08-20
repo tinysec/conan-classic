@@ -52,7 +52,7 @@ from conan.tools.layout import basic_layout
 
 class {package_name}TestConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
-    # VirtualBuildEnv and VirtualRunEnv can be avoided if "tools.env.virtualenv:auto_use" is defined
+    # VirtualBuildEnv and VirtualRunEnv can be avoided if "tools.env.virtualenv.auto_use" is defined
     # (it will be defined in Conan 2.0)
     generators = "PkgConfigDeps", "MesonToolchain", "VirtualBuildEnv", "VirtualRunEnv"
     apply_env = False
@@ -138,7 +138,7 @@ from conans import tools
 
 class {package_name}TestConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
-    # VirtualRunEnv can be avoided if "tools.env.virtualenv:auto_use" is defined
+    # VirtualRunEnv can be avoided if "tools.env.virtualenv.auto_use" is defined
     # (it will be defined in Conan 2.0)
     generators = "VirtualRunEnv"
     apply_env = False

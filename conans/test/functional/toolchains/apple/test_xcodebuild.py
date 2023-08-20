@@ -125,10 +125,10 @@ def test_xcodebuild_test_different_sdk(client):
     client.run("install . -s build_type=Debug --build=missing")
     client.run_command("xcodegen generate")
     client.run("create . --build=missing -s os.sdk=macosx -s os.sdk_version=10.15 "
-               "-c tools.apple:sdk_path='/Applications/Xcode11.7.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk'")
+               "-c tools.apple.sdk_path='/Applications/Xcode11.7.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk'")
     assert "sdk 10.15.6" in client.out
     client.run("create . --build=missing -s os.sdk=macosx -s os.sdk_version=11.3 "
-               "-c tools.apple:sdk_path='/Applications/Xcode12.5.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.3.sdk'")
+               "-c tools.apple.sdk_path='/Applications/Xcode12.5.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.3.sdk'")
     assert "sdk 11.3" in client.out
 
 
@@ -159,4 +159,4 @@ def test_missing_sdk(client):
     client.run("install . -s build_type=Debug --build=missing")
     client.run_command("xcodegen generate")
     client.run("create . --build=missing -s os.sdk=macosx -s os.sdk_version=12.0 "
-               "-c tools.apple:sdk_path=notexistingsdk", assert_error=True)
+               "-c tools.apple.sdk_path=notexistingsdk", assert_error=True)

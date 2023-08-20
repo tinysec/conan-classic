@@ -1574,6 +1574,9 @@ def get_graph_info(profile_host, profile_build, cwd, install_folder, cache, outp
                                   profile_host.env, profile_host.conf, cwd, cache)
         phost.process_settings(cache)
 
+        # add config
+        phost.config = cache.config
+
         profile_build = profile_build or ProfileData(None, None, None, None, None)
         # Only work on the profile_build if something is provided
         pbuild = profile_from_args(profile_build.profiles, profile_build.settings,

@@ -130,8 +130,8 @@ def test_locally_build_msvc_toolset(client):
         build_type=Release
         arch=x86_64
         [conf]
-        tools.cmake.cmaketoolchain:generator=Ninja
-        tools.microsoft.msbuild:vs_version = 15
+        tools.cmake.cmaketoolchain.generator=Ninja
+        tools.microsoft.msbuild.vs_version = 15
         """)
     client.save({"profile": profile})
     client.run("install . -pr=profile")
@@ -211,7 +211,7 @@ def test_ninja_conf():
         build_type=Release
         arch=x86_64
         [conf]
-        tools.cmake.cmaketoolchain:generator=Ninja
+        tools.cmake.cmaketoolchain.generator=Ninja
         """)
     client = TestClient()
     client.save({"conanfile.py": conanfile,

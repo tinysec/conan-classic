@@ -223,7 +223,7 @@ class LinkerScriptsBlock(Block):
 
     def context(self):
         linker_scripts = self._conanfile.conf.get(
-            "tools.build:linker_scripts", check_type=list, default=[])
+            "tools.build.linker_scripts", check_type=list, default=[])
         if not linker_scripts:
             return
         linker_scripts = [linker_script.replace('\\', '/') for linker_script in linker_scripts]
@@ -306,9 +306,9 @@ class AndroidSystemBlock(Block):
         #  https://developer.android.com/ndk/guides/cpp-support
         libcxx_str = self._conanfile.settings.get_safe("compiler.libcxx")
 
-        android_ndk_path = self._conanfile.conf.get("tools.android:ndk_path")
+        android_ndk_path = self._conanfile.conf.get("tools.android.ndk_path")
         if not android_ndk_path:
-            raise ConanException('CMakeToolchain needs tools.android:ndk_path configuration defined')
+            raise ConanException('CMakeToolchain needs tools.android.ndk_path configuration defined')
         android_ndk_path = android_ndk_path.replace("\\", "/")
 
         ctxt_toolchain = {
@@ -377,7 +377,7 @@ class AppleSystemBlock(Block):
     def _apple_sdk_name(self):
         """
         Returns the value for the SDKROOT with this preference:
-        - 1. The full path set in the conf with tools.apple:sdk_path
+        - 1. The full path set in the conf with tools.apple.sdk_path
         - 2. osd.sdk + os.sdk_version
         Otherwise None
         Every user should specify it because there could be several ones depending
@@ -388,7 +388,7 @@ class AppleSystemBlock(Block):
         os_ = self._conanfile.settings.get_safe('os')
         os_sdk = self._conanfile.settings.get_safe('os.sdk')
         os_sdk_version = self._conanfile.settings.get_safe('os.sdk_version') or ""
-        sdk = self._conanfile.conf.get("tools.apple:sdk_path")
+        sdk = self._conanfile.conf.get("tools.apple.sdk_path")
 
         if sdk:
             return sdk
@@ -412,9 +412,9 @@ class AppleSystemBlock(Block):
         # Reading some configurations to enable or disable some Xcode toolchain flags and variables
         # Issue related: https://github.com/conan-io/conan/issues/9448
         # Based on https://github.com/leetal/ios-cmake repository
-        enable_bitcode = self._conanfile.conf.get("tools.apple:enable_bitcode", check_type=bool)
-        enable_arc = self._conanfile.conf.get("tools.apple:enable_arc", check_type=bool)
-        enable_visibility = self._conanfile.conf.get("tools.apple:enable_visibility", check_type=bool)
+        enable_bitcode = self._conanfile.conf.get("tools.apple.enable_bitcode", check_type=bool)
+        enable_arc = self._conanfile.conf.get("tools.apple.enable_arc", check_type=bool)
+        enable_visibility = self._conanfile.conf.get("tools.apple.enable_visibility", check_type=bool)
 
         ctxt_toolchain = {
             "enable_bitcode": enable_bitcode,
@@ -514,7 +514,7 @@ class FindFiles(Block):
         # To find the generated cmake_find_package finders
         # TODO: Change this for parameterized output location of CMakeDeps
         find_package_prefer_config = "ON"  # assume ON by default if not specified in conf
-        prefer_config = self._conanfile.conf.get("tools.cmake.cmaketoolchain:find_package_prefer_config",
+        prefer_config = self._conanfile.conf.get("tools.cmake.cmaketoolchain.find_package_prefer_config",
                                                  check_type=bool)
         if prefer_config is False:
             find_package_prefer_config = "OFF"
@@ -590,7 +590,7 @@ class PkgConfigBlock(Block):
         """)
 
     def context(self):
-        pkg_config = self._conanfile.conf.get("tools.gnu:pkg_config", check_type=str)
+        pkg_config = self._conanfile.conf.get("tools.gnu.pkg_config", check_type=str)
         if pkg_config:
             pkg_config = pkg_config.replace("\\", "/")
         pkg_config_path = self._conanfile.generators_folder
@@ -612,7 +612,7 @@ class UserToolchain(Block):
 
     def context(self):
         # This is global [conf] injection of extra toolchain files
-        user_toolchain = self._conanfile.conf.get("tools.cmake.cmaketoolchain:user_toolchain",
+        user_toolchain = self._conanfile.conf.get("tools.cmake.cmaketoolchain.user_toolchain",
                                                   default=[], check_type=list)
         return {"paths": [ut.replace("\\", "/") for ut in user_toolchain]}
 
@@ -641,11 +641,11 @@ class ExtraFlagsBlock(Block):
 
     def context(self):
         # Now, it's time to get all the flags defined by the user
-        cxxflags = self._conanfile.conf.get("tools.build:cxxflags", default=[], check_type=list)
-        cflags = self._conanfile.conf.get("tools.build:cflags", default=[], check_type=list)
-        sharedlinkflags = self._conanfile.conf.get("tools.build:sharedlinkflags", default=[], check_type=list)
-        exelinkflags = self._conanfile.conf.get("tools.build:exelinkflags", default=[], check_type=list)
-        defines = self._conanfile.conf.get("tools.build:defines", default=[], check_type=list)
+        cxxflags = self._conanfile.conf.get("tools.build.cxxflags", default=[], check_type=list)
+        cflags = self._conanfile.conf.get("tools.build.cflags", default=[], check_type=list)
+        sharedlinkflags = self._conanfile.conf.get("tools.build.sharedlinkflags", default=[], check_type=list)
+        exelinkflags = self._conanfile.conf.get("tools.build.exelinkflags", default=[], check_type=list)
+        defines = self._conanfile.conf.get("tools.build.defines", default=[], check_type=list)
         return {
             "cxxflags": cxxflags,
             "cflags": cflags,
@@ -690,8 +690,8 @@ class CompilersBlock(Block):
     """)
 
     def context(self):
-        # Reading configuration from "tools.build:compiler_executables" -> {"C": "/usr/bin/gcc"}
-        compilers_by_conf = self._conanfile.conf.get("tools.build:compiler_executables", default={},
+        # Reading configuration from "tools.build.compiler_executables" -> {"C": "/usr/bin/gcc"}
+        compilers_by_conf = self._conanfile.conf.get("tools.build.compiler_executables", default={},
                                                      check_type=dict)
         # Map the possible languages
         compilers = {}
@@ -766,7 +766,7 @@ class GenericSystemBlock(Block):
                 else:
                     raise ConanException("CMakeToolchain with compiler=clang and a CMake "
                                          "'Visual Studio' generator requires VS16 or VS17")
-        toolset_arch = self._conanfile.conf.get("tools.cmake.cmaketoolchain:toolset_arch")
+        toolset_arch = self._conanfile.conf.get("tools.cmake.cmaketoolchain.toolset_arch")
         if toolset_arch is not None:
             toolset_arch = "host={}".format(toolset_arch)
             toolset = toolset_arch if toolset is None else "{},{}".format(toolset, toolset_arch)
@@ -814,13 +814,13 @@ class GenericSystemBlock(Block):
                 os_host == 'Macos' and arch_host != arch_build)
 
     def _get_cross_build(self):
-        user_toolchain = self._conanfile.conf.get("tools.cmake.cmaketoolchain:user_toolchain")
+        user_toolchain = self._conanfile.conf.get("tools.cmake.cmaketoolchain.user_toolchain")
         if user_toolchain is not None:
             return None, None, None  # Will be provided by user_toolchain
 
-        system_name = self._conanfile.conf.get("tools.cmake.cmaketoolchain:system_name")
-        system_version = self._conanfile.conf.get("tools.cmake.cmaketoolchain:system_version")
-        system_processor = self._conanfile.conf.get("tools.cmake.cmaketoolchain:system_processor")
+        system_name = self._conanfile.conf.get("tools.cmake.cmaketoolchain.system_name")
+        system_version = self._conanfile.conf.get("tools.cmake.cmaketoolchain.system_version")
+        system_processor = self._conanfile.conf.get("tools.cmake.cmaketoolchain.system_processor")
 
         if hasattr(self._conanfile, "settings_build"):
             os_host = self._conanfile.settings.get_safe("os")
@@ -852,8 +852,8 @@ class GenericSystemBlock(Block):
         toolset = self._get_toolset(generator)
         system_name, system_version, system_processor = self._get_cross_build()
 
-        # This is handled by the tools.apple:sdk_path and CMAKE_OSX_SYSROOT in Apple
-        cmake_sysroot = self._conanfile.conf.get("tools.build:sysroot")
+        # This is handled by the tools.apple.sdk_path and CMAKE_OSX_SYSROOT in Apple
+        cmake_sysroot = self._conanfile.conf.get("tools.build.sysroot")
         cmake_sysroot = cmake_sysroot.replace("\\", "/") if cmake_sysroot is not None else None
 
         return {"toolset": toolset,

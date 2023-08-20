@@ -63,7 +63,7 @@ def _configure_preset(conanfile, generator, cache_variables, toolchain_file, mul
             "cacheVariables": cache_variables,
            }
     if "Ninja" in generator and is_msvc(conanfile):
-        toolset_arch = conanfile.conf.get("tools.cmake.cmaketoolchain:toolset_arch")
+        toolset_arch = conanfile.conf.get("tools.cmake.cmaketoolchain.toolset_arch")
         if toolset_arch:
             toolset_arch = "host={}".format(toolset_arch)
             ret["toolset"] = {
@@ -118,13 +118,13 @@ def _insert_preset(data, preset_name, preset):
 
 
 def _forced_schema_2(conanfile):
-    version = conanfile.conf.get("tools.cmake.cmaketoolchain.presets:max_schema_version",
+    version = conanfile.conf.get("tools.cmake.cmaketoolchain.presets.max_schema_version",
                                  check_type=int)
     if not version:
         return False
 
     if version < 2:
-        raise ConanException("The minimum value for 'tools.cmake.cmaketoolchain.presets:"
+        raise ConanException("The minimum value for 'tools.cmake.cmaketoolchain.presets."
                              "schema_version' is 2")
     if version < 4:
         return True
@@ -164,7 +164,7 @@ def write_cmake_presets(conanfile, toolchain_file, generator, cache_variables,
         if "CMAKE_SH" not in cache_variables:
             cache_variables["CMAKE_SH"] = "CMAKE_SH-NOTFOUND"
 
-        cmake_make_program = conanfile.conf.get("tools.gnu:make_program",
+        cmake_make_program = conanfile.conf.get("tools.gnu.make_program",
                                                 default=cache_variables.get("CMAKE_MAKE_PROGRAM"))
         if cmake_make_program:
             cmake_make_program = cmake_make_program.replace("\\", "/")
@@ -174,7 +174,7 @@ def write_cmake_presets(conanfile, toolchain_file, generator, cache_variables,
         cache_variables["CMAKE_POLICY_DEFAULT_CMP0091"] = "NEW"
 
     if "BUILD_TESTING" not in cache_variables:
-        if conanfile.conf.get("tools.build:skip_test", check_type=bool):
+        if conanfile.conf.get("tools.build.skip_test", check_type=bool):
             cache_variables["BUILD_TESTING"] = "OFF"
 
     preset_path = os.path.join(conanfile.generators_folder, "CMakePresets.json")

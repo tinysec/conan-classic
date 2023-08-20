@@ -43,5 +43,5 @@ def test_basic_layout_no_generators():
                 basic_layout(self)
         """)
     c.save({"conanfile.py": conanfile})
-    c.run("create . -c tools.env.virtualenv:auto_use=True")
+    c.run("create . -c tools.env.virtualenv.auto_use=True")
     # It used to fail, if it doesn't crash, it is good

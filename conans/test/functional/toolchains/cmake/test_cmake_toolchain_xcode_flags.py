@@ -28,9 +28,9 @@ def test_cmake_apple_bitcode_arc_and_visibility_flags_enabled(op_system, os_vers
         os.sdk={}
         arch={}
         [conf]
-        tools.apple:enable_bitcode=True
-        tools.apple:enable_arc=True
-        tools.apple:enable_visibility=True
+        tools.apple.enable_bitcode=True
+        tools.apple.enable_arc=True
+        tools.apple.enable_visibility=True
     """.format(op_system, os_version, sdk, arch))
 
     client = TestClient(path_with_spaces=False)
@@ -76,9 +76,9 @@ def test_cmake_apple_bitcode_arc_and_visibility_flags_enabled_and_xcode_generato
         os.sdk={}
         arch={}
         [conf]
-        tools.apple:enable_bitcode=True
-        tools.apple:enable_arc=True
-        tools.apple:enable_visibility=True
+        tools.apple.enable_bitcode=True
+        tools.apple.enable_arc=True
+        tools.apple.enable_visibility=True
     """.format(op_system, os_version, sdk, arch))
 
     client = TestClient(path_with_spaces=False)
@@ -86,7 +86,7 @@ def test_cmake_apple_bitcode_arc_and_visibility_flags_enabled_and_xcode_generato
     client.run("new hello/0.1 --template=cmake_lib")
     _add_message_status_flags(client)
     client.run("create . --profile:build=default --profile:host=host -tf None "
-               "-c tools.cmake.cmaketoolchain:generator=Xcode")
+               "-c tools.cmake.cmaketoolchain.generator=Xcode")
     assert "** BUILD SUCCEEDED **" in client.out
     # flags are not appended when Xcode generator is used
     for line in str(client.out).splitlines():
@@ -111,9 +111,9 @@ def test_cmake_apple_bitcode_arc_and_visibility_flags_disabled(op_system, os_ver
         os.sdk={}
         arch={}
         [conf]
-        tools.apple:enable_bitcode=False
-        tools.apple:enable_arc=False
-        tools.apple:enable_visibility=False
+        tools.apple.enable_bitcode=False
+        tools.apple.enable_arc=False
+        tools.apple.enable_visibility=False
     """.format(op_system, os_version, sdk, arch))
 
     client = TestClient(path_with_spaces=False)

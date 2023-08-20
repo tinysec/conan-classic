@@ -210,6 +210,15 @@ class ConanFileLoader(object):
         conanfile.initialize(tmp_settings, profile.env_values, profile.buildenv, profile.runenv)
         conanfile.conf = profile.conf.get_conanfile_conf(ref_str)
 
+        # try propagate tools config
+        try:
+            conanfile.conf["tools.files.download.download_cache"] = profile.config.get_item("tools.files.download.download_cache")
+            conanfile.conf["tools.files.download.retry"] = profile.config.get_item("tools.files.download.retry")
+            conanfile.conf["tools.files.download.retry_wait"] = profile.config.get_item("tools.files.download.retry_wait")
+        except:
+            pass
+
+        return
     def load_consumer(self, conanfile_path, profile_host, name=None, version=None, user=None,
                       channel=None, lock_python_requires=None, require_overrides=None):
         """ loads a conanfile.py in user space. Might have name/version or not

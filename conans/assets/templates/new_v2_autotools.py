@@ -87,7 +87,7 @@ test_conanfile = textwrap.dedent("""
 
     class {package_name}TestConan(ConanFile):
         settings = "os", "compiler", "build_type", "arch"
-        # VirtualBuildEnv and VirtualRunEnv can be avoided if "tools.env.virtualenv:auto_use" is defined
+        # VirtualBuildEnv and VirtualRunEnv can be avoided if "tools.env.virtualenv.auto_use" is defined
         # (it will be defined in Conan 2.0)
         generators = "AutotoolsDeps", "AutotoolsToolchain", "VirtualBuildEnv", "VirtualRunEnv"
         apply_env = False
@@ -196,7 +196,7 @@ test_conanfile_exe = textwrap.dedent("""
 
     class {package_name}TestConan(ConanFile):
         settings = "os", "compiler", "build_type", "arch"
-        # VirtualRunEnv can be avoided if "tools.env.virtualenv:auto_use" is defined
+        # VirtualRunEnv can be avoided if "tools.env.virtualenv.auto_use" is defined
         # (it will be defined in Conan 2.0)
         generators = "VirtualRunEnv"
         apply_env = False

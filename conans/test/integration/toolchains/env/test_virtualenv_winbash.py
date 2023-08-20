@@ -31,7 +31,7 @@ def client():
     """
     client.save({"conanfile.py": conanfile})
     client.run("create . foo/1.0@")
-    save(client.cache.new_config_path, "tools.microsoft.bash:subsystem=cygwin")
+    save(client.cache.new_config_path, "tools.microsoft.bash.subsystem=cygwin")
     return client
 
 
@@ -90,7 +90,7 @@ def test_nowinbash(client):
     # Running it inside a cygwin subsystem
     client.save({"conanfile.py": conanfile}, clean_first=True)
     client.run("install . -s:b os=Windows -s:h os=Windows "
-               "-c:h tools.microsoft.bash:active=True")
+               "-c:h tools.microsoft.bash.active=True")
     assert not os.path.exists(os.path.join(client.current_folder, "conanbuildenv.bat"))
     build_contents = client.load("conanbuildenv.sh")
     assert 'export AR="/cygdrive/c/path/to/ar"' in build_contents
@@ -102,7 +102,7 @@ def test_nowinbash(client):
     # Running it inside a msys2 subsystem, test tat it overrides
     client.save({"conanfile.py": conanfile}, clean_first=True)
     client.run("install . -s:b os=Windows -s:h os=Windows "
-               "-c tools.microsoft.bash:subsystem=msys2 -c:h tools.microsoft.bash:active=True")
+               "-c tools.microsoft.bash.subsystem=msys2 -c:h tools.microsoft.bash.active=True")
     assert not os.path.exists(os.path.join(client.current_folder, "conanbuildenv.bat"))
     build_contents = client.load("conanbuildenv.sh")
     assert 'export AR="/c/path/to/ar"' in build_contents
@@ -125,8 +125,8 @@ def test_conf_inherited_in_test_package():
                 version="1.0"
 
                 def package_info(self):
-                    self.conf_info.define("tools.microsoft.bash:subsystem", "msys2")
-                    self.conf_info.define("tools.microsoft.bash:path", "{}")
+                    self.conf_info.define("tools.microsoft.bash.subsystem", "msys2")
+                    self.conf_info.define("tools.microsoft.bash.path", "{}")
     """.format(bash_path))
     client.save({"conanfile.py": conanfile})
     client.run("create .")
@@ -151,7 +151,7 @@ def test_conf_inherited_in_test_package():
                             self.tool_requires("msys2/1.0")
 
                         def build(self):
-                            self.output.warning(self.conf.get("tools.microsoft.bash:subsystem"))
+                            self.output.warning(self.conf.get("tools.microsoft.bash.subsystem"))
                             self.run("aclocal --version")
 
                         def test(self):

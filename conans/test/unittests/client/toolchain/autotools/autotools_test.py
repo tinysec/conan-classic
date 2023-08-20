@@ -24,8 +24,8 @@ def test_configure_arguments():
     conanfile.folders.set_base_install(tmp)
     conanfile.folders.set_base_source(tmp)
     conanfile.conf = Conf()
-    conanfile.conf["tools.gnu:make_program"] = "my_make"
-    conanfile.conf["tools.build:jobs"] = 23
+    conanfile.conf["tools.gnu.make_program"] = "my_make"
+    conanfile.conf["tools.build.jobs"] = 23
     ab = Autotools(conanfile)
     ab.configure()
     assert "configure\" my_configure_args" in runner.command_called

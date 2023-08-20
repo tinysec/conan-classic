@@ -151,18 +151,18 @@ def download(conanfile, url, filename, verify=True, retry=None, retry_wait=None,
     config = conanfile.conf
     overwrite = True
 
-    if config["tools.files.download:retry"]:
-        retry = int(config["tools.files.download:retry"])
+    if config["tools.files.download.retry"]:
+        retry = int(config["tools.files.download.retry"])
     elif retry is None:
         retry = 1
 
-    if config["tools.files.download:retry_wait"]:
-        retry_wait = int(config["tools.files.download:retry_wait"])
+    if config["tools.files.download.retry_wait"]:
+        retry_wait = int(config["tools.files.download.retry_wait"])
     elif retry_wait is None:
         retry_wait = 5
 
     checksum = sha256 or sha1 or md5
-    download_cache = config["tools.files.download:download_cache"] if checksum else None
+    download_cache = config["tools.files.download.download_cache"] if checksum else None
 
     def _download_file(file_url):
         # The download cache is only used if a checksum is provided, otherwise, a normal download

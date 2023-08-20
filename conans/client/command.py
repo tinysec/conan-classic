@@ -2073,6 +2073,8 @@ class Command(object):
                 ("Misc commands", ("profile", "remote", "user", "imports", "copy", "remove",
                                    "alias", "download", "inspect", "help", "lock", "frogarian"))]
 
+        print("\nconan-classic c/c++ package manager.\n")
+
         def check_all_commands_listed():
             """Keep updated the main directory, raise if don't"""
             all_commands = self._commands()
@@ -2323,7 +2325,7 @@ def _add_profile_arguments(parser):
                             dest='conf_{}'.format(machine),
                             help='Configuration to build the package, overwriting the defaults'
                                  ' ({} machine). e.g.: -c{} '
-                                 'tools.cmake.cmaketoolchain:generator=Xcode'.format(machine,
+                                 'tools.cmake.cmaketoolchain.generator=Xcode'.format(machine,
                                                                                      short_suffix))
 
     for item_fn in [environment_args, options_args, profile_args, settings_args, conf_args]:

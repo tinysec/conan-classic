@@ -396,7 +396,7 @@ class GraphBinariesAnalyzer(object):
                                           default_python_requires_id_mode=
                                           default_python_requires_id_mode)
         conanfile.original_info = conanfile.info.clone()
-        if not self._cache.new_config["core.package_id:msvc_visual_incompatible"]:
+        if not self._cache.new_config["core.package_id.msvc_visual_incompatible"]:
             msvc_compatible = conanfile.info.msvc_compatible()
             if msvc_compatible:
                 conanfile.compatible_packages.append(msvc_compatible)

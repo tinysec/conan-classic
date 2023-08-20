@@ -18,7 +18,7 @@ def test_crossbuild_triplet_from_conf():
                 libcxx: [libstdc++11]
         build_type: [None, Debug, Release]
         """)
-    
+
     host_profile = textwrap.dedent("""
         [settings]
         os=Linux
@@ -28,7 +28,7 @@ def test_crossbuild_triplet_from_conf():
         compiler.libcxx=libstdc++11
         build_type=Release
         [conf]
-        tools.gnu:host_triplet=hexagon-acme-linux-gnu
+        tools.gnu.host_triplet=hexagon-acme-linux-gnu
     """)
 
     build_profile = textwrap.dedent("""
@@ -38,7 +38,7 @@ def test_crossbuild_triplet_from_conf():
         compiler=gcc
         compiler.version=11
         compiler.libcxx=libstdc++11
-        build_type=Release   
+        build_type=Release
     """)
 
     client = TestClient(path_with_spaces=False)

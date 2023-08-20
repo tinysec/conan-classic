@@ -59,7 +59,7 @@ test = textwrap.dedent("""
 
     class HelloTestConan(ConanFile):
         settings = "os", "compiler", "build_type", "arch"
-        # VirtualBuildEnv and VirtualRunEnv can be avoided if "tools.env.virtualenv:auto_use" is defined
+        # VirtualBuildEnv and VirtualRunEnv can be avoided if "tools.env.virtualenv.auto_use" is defined
         # (it will be defined in Conan 2.0)
         generators = "CMakeDeps", "CMakeToolchain", "VirtualBuildEnv", "VirtualRunEnv"
         apply_env = False

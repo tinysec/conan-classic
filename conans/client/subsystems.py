@@ -4,17 +4,17 @@ Potential scenarios:
 - Running from a Windows native "cmd"
   - Targeting Windows native (os.subsystem = None)
     - No need of bash (no conf at all)
-    - Need to build in bash (tools.microsoft.bash:subsystem=xxx,
-                             tools.microsoft.bash:path=<path>,
+    - Need to build in bash (tools.microsoft.bash.subsystem=xxx,
+                             tools.microsoft.bash.path=<path>,
                              conanfile.win_bash)
-    - Need to run (tests) in bash (tools.microsoft.bash:subsystem=xxx,
-                                   tools.microsoft.bash:path=<path>,
+    - Need to run (tests) in bash (tools.microsoft.bash.subsystem=xxx,
+                                   tools.microsoft.bash.path=<path>,
                                    conanfile.win_bash_run)
   - Targeting Subsystem (os.subsystem = msys2/cygwin)
-    - Always builds and runs in bash (tools.microsoft.bash:path)
+    - Always builds and runs in bash (tools.microsoft.bash.path)
 
-- Running from a subsytem terminal (tools.microsoft.bash:subsystem=xxx,
-                                    tools.microsoft.bash:path=None) NO ERROR mode for not specifying it? =CURRENT?
+- Running from a subsytem terminal (tools.microsoft.bash.subsystem=xxx,
+                                    tools.microsoft.bash.path=None) NO ERROR mode for not specifying it? =CURRENT?
   - Targeting Windows native (os.subsystem = None)
   - Targeting Subsystem (os.subsystem = msys2/cygwin)
 
@@ -42,15 +42,15 @@ def command_env_wrapper(conanfile, command, envfiles, envfiles_folder, scope="bu
         #  Is it necessary? Shouldn't be
         return command
 
-    active = conanfile.conf.get("tools.microsoft.bash:active", check_type=bool)
-    subsystem = conanfile.conf.get("tools.microsoft.bash:subsystem")
+    active = conanfile.conf.get("tools.microsoft.bash.active", check_type=bool)
+    subsystem = conanfile.conf.get("tools.microsoft.bash.subsystem")
 
     if platform.system() == "Windows" and (
             (conanfile.win_bash and scope == "build") or
             (conanfile.win_bash_run and scope == "run")):
         if subsystem is None:
             raise ConanException("win_bash/win_bash_run defined but no "
-                                 "tools.microsoft.bash:subsystem")
+                                 "tools.microsoft.bash.subsystem")
         if active:
             wrapped_cmd = environment_wrap_command(envfiles, envfiles_folder, command)
         else:
@@ -65,10 +65,10 @@ def _windows_bash_wrapper(conanfile, command, env, envfiles_folder):
     from conan.tools.env.environment import environment_wrap_command
     """ Will wrap a unix command inside a bash terminal It requires to have MSYS2, CYGWIN, or WSL"""
 
-    subsystem = conanfile.conf.get("tools.microsoft.bash:subsystem")
-    shell_path = conanfile.conf.get("tools.microsoft.bash:path")
+    subsystem = conanfile.conf.get("tools.microsoft.bash.subsystem")
+    shell_path = conanfile.conf.get("tools.microsoft.bash.path")
     if not shell_path:
-        raise ConanException("The config 'tools.microsoft.bash:path' is "
+        raise ConanException("The config 'tools.microsoft.bash.path' is "
                              "needed to run commands in a Windows subsystem")
     env = env or []
     if subsystem == MSYS2:
@@ -136,16 +136,16 @@ def deduce_subsystem(conanfile, scope):
     if not str(the_os).startswith("Windows"):
         return None
 
-    subsystem = conanfile.conf.get("tools.microsoft.bash:subsystem")
+    subsystem = conanfile.conf.get("tools.microsoft.bash.subsystem")
     if not subsystem:
         if conanfile.win_bash:
-            raise ConanException("win_bash=True but tools.microsoft.bash:subsystem "
+            raise ConanException("win_bash=True but tools.microsoft.bash.subsystem "
                                  "configuration not defined")
         if conanfile.win_bash_run:
-            raise ConanException("win_bash_run=True but tools.microsoft.bash:subsystem "
+            raise ConanException("win_bash_run=True but tools.microsoft.bash.subsystem "
                                  "configuration not defined")
         return WINDOWS
-    active = conanfile.conf.get("tools.microsoft.bash:active", check_type=bool)
+    active = conanfile.conf.get("tools.microsoft.bash.active", check_type=bool)
     if active:
         return subsystem
 

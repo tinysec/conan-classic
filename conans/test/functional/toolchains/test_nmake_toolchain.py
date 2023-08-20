@@ -31,11 +31,11 @@ def test_toolchain_nmake(compiler, version, runtime, cppstd, build_type,
 
     serialize_array = lambda arr: "[{}]".format(",".join([f"'{v}'" for v in arr]))
     conf = {
-        "tools.build:defines": serialize_array(defines) if defines else "",
-        "tools.build:cflags": serialize_array(cflags) if cflags else "",
-        "tools.build:cxxflags": serialize_array(cxxflags) if cxxflags else "",
-        "tools.build:sharedlinkflags": serialize_array(sharedlinkflags) if sharedlinkflags else "",
-        "tools.build:exelinkflags": serialize_array(exelinkflags) if exelinkflags else "",
+        "tools.build.defines": serialize_array(defines) if defines else "",
+        "tools.build.cflags": serialize_array(cflags) if cflags else "",
+        "tools.build.cxxflags": serialize_array(cxxflags) if cxxflags else "",
+        "tools.build.sharedlinkflags": serialize_array(sharedlinkflags) if sharedlinkflags else "",
+        "tools.build.exelinkflags": serialize_array(exelinkflags) if exelinkflags else "",
     }
 
     # Build the profile according to the settings provided

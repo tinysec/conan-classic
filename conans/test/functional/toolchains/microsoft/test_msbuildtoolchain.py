@@ -31,11 +31,11 @@ def test_msbuildtoolchain_props_with_extra_flags():
     include(default)
 
     [conf]
-    tools.build:cxxflags=["/analyze:quiet"]
-    tools.build:cflags+=["/doc"]
-    tools.build:sharedlinkflags+=["/VERBOSE:UNUSEDLIBS"]
-    tools.build:exelinkflags+=["/PDB:mypdbfile"]
-    tools.build:defines+=["DEF1", "DEF2"]
+    tools.build.cxxflags=["/analyze:quiet"]
+    tools.build.cflags+=["/doc"]
+    tools.build.sharedlinkflags+=["/VERBOSE:UNUSEDLIBS"]
+    tools.build.exelinkflags+=["/PDB:mypdbfile"]
+    tools.build.defines+=["DEF1", "DEF2"]
     """)
     client = TestClient(path_with_spaces=False)
     client.run("new hello/0.1 --template=msbuild_exe")
