@@ -15,8 +15,8 @@ but the command line is same as 1.x
 ## When to use this fork
 1. You still have to depend some packages written in 1.x
 2. You want support compiler old than visual studio 2012
-3. You want tools download cache worked
-4. You want easy per-site proxy feature worked
+
+
 
 
 

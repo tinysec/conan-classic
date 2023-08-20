@@ -2073,6 +2073,8 @@ class Command(object):
                 ("Misc commands", ("profile", "remote", "user", "imports", "copy", "remove",
                                    "alias", "download", "inspect", "help", "lock", "frogarian"))]
 
+        print("\nconan-classic c/c++ package manager.\n")
+
         def check_all_commands_listed():
             """Keep updated the main directory, raise if don't"""
             all_commands = self._commands()
