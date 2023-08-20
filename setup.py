@@ -46,7 +46,7 @@ def load_version():
 
 def generate_long_description_file():
     this_directory = path.abspath(path.dirname(__file__))
-    with open(path.join(this_directory, 'README.rst')) as f:
+    with open(path.join(this_directory, 'README.md')) as f:
         long_description = f.read()
     return long_description
 
